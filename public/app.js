@@ -626,10 +626,14 @@ async function loadPlaylists() {
   items.forEach((playlist) => {
     const card = document.createElement("div");
     card.className = "playlist-card";
+    // Spotify deprecated playlist.tracks in favor of playlist.items as of
+    // Feb 2026 — the old field can report 0 even when the playlist has
+    // tracks, so we check the new field first and fall back for safety.
+    const trackCount = playlist.items?.total ?? playlist.tracks?.total ?? 0;
     card.innerHTML = `
       <img src="${playlist.images?.[0]?.url || ""}" alt="" loading="lazy" />
       <div class="playlist-card-name">${escapeHTML(playlist.name)}</div>
-      <div class="playlist-card-count">${playlist.tracks?.total ?? 0} tracks</div>
+      <div class="playlist-card-count">${trackCount} tracks</div>
     `;
     grid.appendChild(card);
   });
