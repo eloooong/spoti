@@ -40,6 +40,60 @@ function staggerEntrances() {
   });
 }
 
+// --- Skeleton loading placeholders ---------------------------------------
+// Shown the instant a section starts fetching, so panels never sit blank
+// while waiting on the network — replaced the moment real content renders.
+function showListSkeleton(elementId, rows = 6) {
+  const list = document.getElementById(elementId);
+  if (!list) return;
+  list.innerHTML = Array.from({ length: rows })
+    .map(
+      () => `
+    <li class="ranked-item">
+      <span class="skeleton skeleton-text" style="width:18px;height:14px;"></span>
+      <span class="rank-art skeleton"></span>
+      <span class="rank-info">
+        <div class="skeleton skeleton-text" style="width:72%;"></div>
+        <div class="skeleton skeleton-text" style="width:42%;margin-top:6px;"></div>
+      </span>
+    </li>`
+    )
+    .join("");
+}
+
+function showChartSkeleton(canvasId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const wrap = canvas.parentElement;
+  if (wrap.querySelector(".chart-skeleton-overlay")) return;
+  const overlay = document.createElement("div");
+  overlay.className = "chart-skeleton-overlay skeleton";
+  wrap.appendChild(overlay);
+}
+
+function hideChartSkeleton(canvasId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const overlay = canvas.parentElement.querySelector(".chart-skeleton-overlay");
+  if (overlay) overlay.remove();
+}
+
+function showPlaylistGridSkeleton(elementId, count = 10) {
+  const grid = document.getElementById(elementId);
+  if (!grid) return;
+  grid.innerHTML = Array.from({ length: count })
+    .map(
+      () => `
+    <div class="playlist-card">
+      <div class="skeleton" style="width:100%;aspect-ratio:1/1;border-radius:4px;margin-bottom:10px;"></div>
+      <div class="skeleton skeleton-text" style="width:80%;"></div>
+      <div class="skeleton skeleton-text" style="width:40%;margin-top:6px;"></div>
+    </div>`
+    )
+    .join("");
+}
+
+
 function wireRangeTabs() {
   document.querySelectorAll(".range-tab").forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -66,6 +120,7 @@ async function loadNowPlaying() {
     title.textContent = "Nothing's spinning";
     sub.textContent = "Press play on Spotify to see it here.";
     art.classList.remove("visible");
+    document.getElementById("hero-ambient").classList.remove("visible");
     progressWrap.classList.add("hidden");
     meta.innerHTML = "";
     setEqActive(false);
@@ -77,12 +132,16 @@ async function loadNowPlaying() {
   sub.textContent = data.item.artists.map((a) => a.name).join(", ");
 
   const coverUrl = data.item.album?.images?.[0]?.url;
+  const ambient = document.getElementById("hero-ambient");
   if (coverUrl) {
     art.src = coverUrl;
     art.alt = `${data.item.album?.name || "Album"} cover art`;
     art.classList.add("visible");
+    ambient.style.backgroundImage = `url("${coverUrl}")`;
+    ambient.classList.add("visible");
   } else {
     art.classList.remove("visible");
+    ambient.classList.remove("visible");
   }
 
   // Progress bar
@@ -141,6 +200,11 @@ function setEqActive(active) {
 
 // --- Top artists / top tracks --------------------------------------------
 async function loadTopLists(range) {
+  showListSkeleton("top-artists-list");
+  showListSkeleton("top-tracks-list");
+  showChartSkeleton("top-songs-chart");
+  showChartSkeleton("top-artists-chart");
+
   const [artists, tracks] = await Promise.all([
     fetchJSON(`/api/top-artists?range=${range}`),
     fetchJSON(`/api/top-tracks?range=${range}`),
@@ -214,6 +278,7 @@ function chartLibraryMissing(canvas) {
 function renderTopSongsChart(trackItems) {
   const canvas = document.getElementById("top-songs-chart");
   if (chartLibraryMissing(canvas)) return;
+  hideChartSkeleton("top-songs-chart");
   if (topSongsChartInstance) topSongsChartInstance.destroy();
 
   if (trackItems.length === 0) {
@@ -241,6 +306,7 @@ function renderTopSongsChart(trackItems) {
 function renderTopArtistsChart(artistItems) {
   const canvas = document.getElementById("top-artists-chart");
   if (chartLibraryMissing(canvas)) return;
+  hideChartSkeleton("top-artists-chart");
   if (topArtistsChartInstance) topArtistsChartInstance.destroy();
 
   if (artistItems.length === 0) {
@@ -299,6 +365,7 @@ let weeklyRoutineInstance = null;
 function renderListeningClock(items) {
   const canvas = document.getElementById("listening-clock-chart");
   if (chartLibraryMissing(canvas)) return;
+  hideChartSkeleton("listening-clock-chart");
   if (listeningClockInstance) listeningClockInstance.destroy();
 
   if (items.length === 0) {
@@ -343,6 +410,7 @@ function renderListeningClock(items) {
 function renderWeeklyRoutine(items) {
   const canvas = document.getElementById("weekly-routine-chart");
   if (chartLibraryMissing(canvas)) return;
+  hideChartSkeleton("weekly-routine-chart");
   if (weeklyRoutineInstance) weeklyRoutineInstance.destroy();
 
   if (items.length === 0) {
@@ -383,6 +451,10 @@ function renderWeeklyRoutine(items) {
 // Top Playlists Listened (neither of which Spotify's API provides
 // directly — both are us counting frequency in your last ~50 plays). -----
 async function loadRecentPlaysData() {
+  showChartSkeleton("daily-top-chart");
+  showChartSkeleton("listening-clock-chart");
+  showChartSkeleton("weekly-routine-chart");
+
   const data = await fetchJSON("/api/recent");
   const items = data?.items || [];
 
@@ -398,6 +470,7 @@ let dailyTopChartInstance = null;
 function renderDailyTop(items) {
   const canvas = document.getElementById("daily-top-chart");
   if (chartLibraryMissing(canvas)) return;
+  hideChartSkeleton("daily-top-chart");
   if (dailyTopChartInstance) dailyTopChartInstance.destroy();
 
   if (items.length === 0) {
@@ -538,6 +611,7 @@ function setStatNumber(elementId, value) {
 
 // --- Playlists (view-only grid, no drill-down) -----------------------------
 async function loadPlaylists() {
+  showPlaylistGridSkeleton("playlist-grid");
   const data = await fetchJSON("/api/playlists");
   const grid = document.getElementById("playlist-grid");
   const items = data?.items || [];
