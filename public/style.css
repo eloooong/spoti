@@ -1,0 +1,546 @@
+/* ---------- Design tokens ---------- */
+:root {
+  --bg: #121212;
+  --panel: #181818;
+  --panel-border: #282828;
+  --gold: #1db954;   /* Spotify green */
+  --coral: #1ed760;  /* brighter green, used for secondary accents */
+  --text: #ffffff;
+  --text-dim: #b3b3b3;
+
+  --font-display: "Montserrat", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+.hidden { display: none !important; }
+
+a { color: inherit; }
+
+/* subtle film-grain texture over the whole page */
+.grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  z-index: 999;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- Top bar ---------- */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 28px clamp(20px, 5vw, 64px) 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.brand-mark {
+  color: var(--gold);
+  font-size: 1.3rem;
+}
+
+/* ---------- Login view ---------- */
+.login-view {
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-card {
+  text-align: center;
+  max-width: 440px;
+}
+
+.login-card h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 800;
+  margin: 24px 0 12px;
+}
+
+.login-card p {
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin-bottom: 28px;
+}
+
+.btn-primary {
+  display: inline-block;
+  background: var(--gold);
+  color: #000000;
+  font-weight: 600;
+  padding: 14px 28px;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(232, 180, 100, 0.25);
+}
+
+.btn-primary:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.btn-primary:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 3px;
+}
+
+/* small idle equalizer on the login card */
+.eq {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  align-items: flex-end;
+}
+.eq span {
+  width: 6px;
+  background: var(--coral);
+  border-radius: 3px;
+  animation: bounce 1.2s ease-in-out infinite;
+}
+.eq span:nth-child(1) { height: 14px; animation-delay: 0s; }
+.eq span:nth-child(2) { height: 28px; animation-delay: 0.15s; }
+.eq span:nth-child(3) { height: 38px; animation-delay: 0.3s; }
+.eq span:nth-child(4) { height: 22px; animation-delay: 0.45s; }
+.eq span:nth-child(5) { height: 32px; animation-delay: 0.6s; }
+
+@keyframes bounce {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eq span, .hero-eq span { animation: none !important; }
+  .hero, .panel { animation: none !important; opacity: 1 !important; }
+}
+
+/* Entrance animation — staggered via inline animation-delay set in app.js */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hero, .panel {
+  animation: fadeUp 0.5s ease both;
+}
+
+/* ---------- Dashboard ---------- */
+.dashboard {
+  padding: 24px clamp(20px, 5vw, 64px) 80px;
+  max-width: 1320px;
+  margin: 0 auto;
+}
+
+/* Hero: "now playing" strip */
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  background: linear-gradient(135deg, var(--panel), #0a0a0a);
+  border-radius: 8px;
+  padding: 32px clamp(20px, 4vw, 40px);
+  margin: 20px 0 36px;
+}
+
+.hero-art-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 96px;
+  height: 96px;
+}
+
+.hero-art {
+  width: 96px;
+  height: 96px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--panel-border);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.hero-art.visible {
+  opacity: 1;
+}
+
+.hero-eq {
+  position: absolute;
+  bottom: -8px;
+  right: -8px;
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+  height: 26px;
+  padding: 5px 6px;
+  background: #000000;
+  border-radius: 6px;
+}
+.hero-eq span {
+  width: 4px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--gold);
+}
+.hero-eq span:nth-child(even) { background: var(--coral); }
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 0 0 6px;
+}
+
+#hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+.hero-sub {
+  color: var(--text-dim);
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* Playback progress bar */
+.progress-wrap {
+  margin-top: 14px;
+  max-width: 360px;
+}
+
+.progress-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--panel-border);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--gold);
+  border-radius: 2px;
+  transition: width 1s linear;
+}
+
+.progress-times {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* Hero meta badges: device, shuffle, repeat, volume */
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.meta-badge {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  background: #0e0e0e;
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+/* Time range tabs */
+.range-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+
+.range-tab {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  padding: 8px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.range-tab:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+  transform: translateY(-1px);
+}
+
+.range-tab:active {
+  transform: translateY(0) scale(0.96);
+}
+
+.range-tab.active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #000000;
+  font-weight: 600;
+}
+
+.range-tab:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
+}
+
+/* Panels */
+.panel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 720px) {
+  .panel-grid { grid-template-columns: 1fr; }
+  .hero { flex-direction: column; text-align: center; }
+}
+
+.panel {
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 28px;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.panel:hover {
+  background: #202020;
+  transform: translateY(-3px);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.35);
+}
+
+.panel-wide {
+  margin-bottom: 24px;
+}
+
+.panel h2 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 18px;
+}
+
+.idx {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--coral);
+}
+
+/* Ranked lists (top artists / tracks) */
+.ranked-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ranked-item {
+  display: grid;
+  grid-template-columns: 28px 44px 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  border-radius: 6px;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.ranked-item:hover {
+  background: #262626;
+  transform: translateX(3px);
+}
+
+.rank-num {
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.rank-art {
+  width: 44px;
+  height: 44px;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--panel-border);
+}
+
+.rank-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-sub {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-info {
+  min-width: 0;
+}
+
+/* Library snapshot stat cards */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 720px) {
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.stat-card {
+  background: #0e0e0e;
+  border-radius: 8px;
+  padding: 18px 14px;
+  text-align: center;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.stat-card:hover {
+  background: #171717;
+  transform: translateY(-2px);
+}
+
+.stat-number {
+  font-family: var(--font-mono);
+  font-size: 1.6rem;
+  font-weight: 500;
+  color: var(--gold);
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+.panel-note {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  margin: -10px 0 16px;
+}
+
+.chart-wrap {
+  position: relative;
+  height: 260px;
+}
+
+.chart-empty {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+/* Playlists (view-only — no click, cover art animates on hover) */
+.playlist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 20px;
+}
+
+.top-playlists-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 20px;
+  margin-bottom: 8px;
+}
+
+.playlist-card {
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.playlist-card img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 4px;
+  background: var(--panel-border);
+  margin-bottom: 10px;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.playlist-card:hover img {
+  transform: scale(1.05) translateY(-3px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.45);
+}
+
+.playlist-card-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playlist-card-count {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.playlist-card-small img {
+  border: 2px solid transparent;
+}
+
+.playlist-card-small:hover img {
+  border-color: var(--gold);
+}
+
+.panel-note-spaced {
+  margin-top: 28px;
+}
+
+#status-area {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}

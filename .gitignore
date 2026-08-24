@@ -1,0 +1,11 @@
+# Never commit your real credentials
+server/.env
+
+# Local HTTPS certificate — private key, and specific to your machine
+server/certs
+
+# Dependencies — reinstalled via "npm install", no need to commit them
+server/node_modules
+
+# OS/editor clutter
+.DS_Store

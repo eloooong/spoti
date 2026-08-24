@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SpotiStats — Your Spotify Stats</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+<script src="vendor/chart.umd.js"></script>
+</head>
+<body>
+
+  <div class="grain"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">◐</span>
+      <span class="brand-name">SpotiStats</span>
+    </div>
+    <div id="status-area"></div>
+  </header>
+
+  <!-- Shown only when not logged in -->
+  <section id="login-view" class="login-view hidden">
+    <div class="login-card">
+      <div class="eq" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <h1>Your listening, laid out.</h1>
+      <p>Connect your Spotify account to see your top tracks, top artists, and recent plays.</p>
+      <a href="/login" class="btn-primary">Connect Spotify</a>
+    </div>
+  </section>
+
+  <!-- Shown once logged in -->
+  <main id="dashboard-view" class="dashboard hidden">
+
+    <section class="hero" id="hero">
+      <div class="hero-art-wrap">
+        <img id="hero-art" class="hero-art" src="" alt="" />
+        <div class="hero-eq" id="hero-eq" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+      <div class="hero-text">
+        <p class="eyebrow" id="hero-eyebrow">Right now</p>
+        <h1 id="hero-title">Nothing's spinning</h1>
+        <p class="hero-sub" id="hero-sub">Press play on Spotify to see it here.</p>
+
+        <div class="progress-wrap hidden" id="progress-wrap">
+          <div class="progress-track">
+            <div class="progress-fill" id="progress-fill"></div>
+          </div>
+          <div class="progress-times">
+            <span id="progress-elapsed">0:00</span>
+            <span id="progress-duration">0:00</span>
+          </div>
+        </div>
+
+        <div class="hero-meta" id="hero-meta"></div>
+      </div>
+    </section>
+
+    <nav class="range-tabs" role="tablist" aria-label="Time range">
+      <button class="range-tab active" data-range="short_term">Last 4 weeks</button>
+      <button class="range-tab" data-range="medium_term">Last 6 months</button>
+      <button class="range-tab" data-range="long_term">All time</button>
+    </nav>
+
+    <section class="panel-grid">
+      <div class="panel">
+        <h2><span class="idx">01</span> Top Artists</h2>
+        <ol class="ranked-list" id="top-artists-list"></ol>
+      </div>
+
+      <div class="panel">
+        <h2><span class="idx">02</span> Top Tracks</h2>
+        <ol class="ranked-list" id="top-tracks-list"></ol>
+      </div>
+    </section>
+
+    <section class="panel-grid">
+      <div class="panel">
+        <h2><span class="idx">03</span> Top Songs</h2>
+        <p class="panel-note">By rank — Spotify doesn't expose real play counts, so bar length reflects order, not volume</p>
+        <div class="chart-wrap"><canvas id="top-songs-chart"></canvas></div>
+      </div>
+
+      <div class="panel">
+        <h2><span class="idx">04</span> Top Artists</h2>
+        <p class="panel-note">Same as above — ranked order, not exact play counts</p>
+        <div class="chart-wrap"><canvas id="top-artists-chart"></canvas></div>
+      </div>
+    </section>
+
+    <section class="panel-grid">
+      <div class="panel">
+        <h2><span class="idx">05</span> Listening Clock</h2>
+        <p class="panel-note">When you stream most, based on your last ~50 plays</p>
+        <div class="chart-wrap"><canvas id="listening-clock-chart"></canvas></div>
+      </div>
+
+      <div class="panel">
+        <h2><span class="idx">06</span> Weekly Routine</h2>
+        <p class="panel-note">Plays by day of week, from your last ~50 plays</p>
+        <div class="chart-wrap"><canvas id="weekly-routine-chart"></canvas></div>
+      </div>
+    </section>
+
+    <section class="panel-grid">
+      <div class="panel">
+        <h2><span class="idx">07</span> Library Snapshot</h2>
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-number" id="stat-followed-artists">—</div>
+            <div class="stat-label">Followed artists</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="stat-saved-tracks">—</div>
+            <div class="stat-label">Liked songs</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="stat-saved-albums">—</div>
+            <div class="stat-label">Saved albums</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="stat-playlists">—</div>
+            <div class="stat-label">Playlists</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2><span class="idx">08</span> Daily Top</h2>
+        <p class="panel-note">Most-played artist &amp; track each day, from your last ~50 plays — hover a bar for details</p>
+        <div class="chart-wrap"><canvas id="daily-top-chart"></canvas></div>
+      </div>
+    </section>
+
+    <section class="panel panel-wide">
+      <h2><span class="idx">09</span> Playlists</h2>
+
+      <div id="top-playlists-section">
+        <p class="panel-note">Top Playlists Listened — based on where your last ~50 plays came from</p>
+        <div class="top-playlists-row" id="top-playlists-row"></div>
+      </div>
+
+      <p class="panel-note panel-note-spaced">All Playlists</p>
+      <div class="playlist-grid" id="playlist-grid"></div>
+    </section>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
