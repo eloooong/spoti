@@ -21,11 +21,15 @@ async function init() {
   staggerEntrances();
 
   wireRangeTabs();
+  wireAiRegenerateButton();
+  wireAiRecapRegenerateButton();
+  wireAiChat();
   loadNowPlaying();
   loadLibrarySnapshot();
   loadTopLists(currentRange);
   loadRecentPlaysData();
   loadPlaylists();
+  loadAiTasteProfile();
 
   // Refresh "now playing" every 15s so the hero stays current.
   setInterval(loadNowPlaying, 15000);
@@ -689,6 +693,187 @@ async function renderTopPlaylistsListened(items) {
     `;
     row.appendChild(card);
   });
+}
+
+// --- AI Taste Profile ---------------------------------------------------
+// Calls our own backend (never the Anthropic API directly from the
+// browser), which in turn asks an AI for a short take on your music
+// taste. If the site owner hasn't set up an API key, this section just
+// stays hidden entirely — no error shown to visitors.
+async function loadAiTasteProfile(forceRefresh = false) {
+  const section = document.getElementById("ai-profile-section");
+  const content = document.getElementById("ai-profile-content");
+  const button = document.getElementById("ai-regenerate-btn");
+
+  if (!forceRefresh) {
+    content.innerHTML = `
+      <div class="skeleton skeleton-text" style="width:95%;"></div>
+      <div class="skeleton skeleton-text" style="width:88%;margin-top:8px;"></div>
+      <div class="skeleton skeleton-text" style="width:60%;margin-top:8px;"></div>
+    `;
+  } else {
+    button.disabled = true;
+    button.textContent = "Thinking…";
+  }
+
+  let res;
+  let data;
+  try {
+    res = await fetch(`/api/ai-taste-profile${forceRefresh ? "?refresh=1" : ""}`);
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+
+  if (!data || (res && res.status === 501 && data.error === "ai_not_configured")) {
+    // Feature isn't set up on this deployment — hide all three AI sections.
+    section.classList.add("hidden");
+    document.getElementById("ai-recap-section").classList.add("hidden");
+    document.getElementById("ai-chat-section").classList.add("hidden");
+    return;
+  }
+
+  section.classList.remove("hidden");
+
+  if (!forceRefresh) {
+    // First successful check this page load — AI is configured, so reveal
+    // chat immediately and kick off the recap too.
+    document.getElementById("ai-chat-section").classList.remove("hidden");
+    loadAiRecap();
+  }
+
+  if (data.error) {
+    content.innerHTML = `<p class="chart-empty">Couldn't generate a taste profile right now — try again in a moment.</p>`;
+    button.classList.remove("hidden");
+    button.disabled = false;
+    button.textContent = "Try again";
+    return;
+  }
+
+  content.innerHTML = `<p class="ai-profile-text">${escapeHTML(data.profile)}</p>`;
+  button.classList.remove("hidden");
+  button.disabled = false;
+  button.textContent = "Regenerate";
+}
+
+function wireAiRegenerateButton() {
+  document.getElementById("ai-regenerate-btn").addEventListener("click", () => {
+    loadAiTasteProfile(true);
+  });
+}
+
+// --- AI Daily/Weekly Recap ------------------------------------------------
+// Same pattern as the taste profile, just a different backend route and a
+// different write-up style (recent activity rather than overall taste).
+async function loadAiRecap(forceRefresh = false) {
+  const section = document.getElementById("ai-recap-section");
+  const content = document.getElementById("ai-recap-content");
+  const button = document.getElementById("ai-recap-regenerate-btn");
+
+  if (!forceRefresh) {
+    content.innerHTML = `
+      <div class="skeleton skeleton-text" style="width:95%;"></div>
+      <div class="skeleton skeleton-text" style="width:85%;margin-top:8px;"></div>
+      <div class="skeleton skeleton-text" style="width:65%;margin-top:8px;"></div>
+    `;
+  } else {
+    button.disabled = true;
+    button.textContent = "Thinking…";
+  }
+
+  let data;
+  try {
+    const res = await fetch(`/api/ai-recap${forceRefresh ? "?refresh=1" : ""}`);
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+
+  section.classList.remove("hidden");
+
+  if (!data || data.error) {
+    content.innerHTML = `<p class="chart-empty">Couldn't generate a recap right now — try again in a moment.</p>`;
+    button.classList.remove("hidden");
+    button.disabled = false;
+    button.textContent = "Try again";
+    return;
+  }
+
+  content.innerHTML = `<p class="ai-profile-text">${escapeHTML(data.recap)}</p>`;
+  button.classList.remove("hidden");
+  button.disabled = false;
+  button.textContent = "Regenerate";
+}
+
+function wireAiRecapRegenerateButton() {
+  document.getElementById("ai-recap-regenerate-btn").addEventListener("click", () => {
+    loadAiRecap(true);
+  });
+}
+
+// --- AI Chat: "Ask about your stats" ---------------------------------------
+// Conversation history lives only in this array — it resets on page
+// reload. The AI has no memory between API calls, so we send the whole
+// history back on every message (the server also caps this server-side).
+let chatHistory = [];
+
+function wireAiChat() {
+  const form = document.getElementById("ai-chat-form");
+  const input = document.getElementById("ai-chat-input");
+  const sendBtn = document.getElementById("ai-chat-send");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const message = input.value.trim();
+    if (!message) return;
+
+    appendChatMessage("user", message);
+    const historyBeforeThisMessage = [...chatHistory];
+    chatHistory.push({ role: "user", content: message });
+
+    input.value = "";
+    input.disabled = true;
+    sendBtn.disabled = true;
+    sendBtn.textContent = "…";
+
+    const thinkingBubble = appendChatMessage("assistant", "Thinking…", true);
+
+    let data;
+    try {
+      const res = await fetch("/api/ai-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, history: historyBeforeThisMessage }),
+      });
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+
+    thinkingBubble.remove();
+
+    if (!data || data.error) {
+      appendChatMessage("assistant", "Sorry, something went wrong answering that — try again.");
+    } else {
+      appendChatMessage("assistant", data.reply);
+      chatHistory.push({ role: "assistant", content: data.reply });
+    }
+
+    input.disabled = false;
+    sendBtn.disabled = false;
+    sendBtn.textContent = "Send";
+    input.focus();
+  });
+}
+
+function appendChatMessage(role, text, isPlaceholder = false) {
+  const container = document.getElementById("ai-chat-messages");
+  const bubble = document.createElement("div");
+  bubble.className = `chat-bubble chat-bubble-${role}${isPlaceholder ? " chat-bubble-thinking" : ""}`;
+  bubble.textContent = text;
+  container.appendChild(bubble);
+  container.scrollTop = container.scrollHeight;
+  return bubble;
 }
 
 // --- Small utilities --------------------------------------------------

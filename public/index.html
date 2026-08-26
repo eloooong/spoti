@@ -141,8 +141,24 @@
       </div>
     </section>
 
+    <section class="panel-grid">
+      <div class="panel hidden" id="ai-profile-section">
+        <h2><span class="idx">09</span> AI Taste Profile</h2>
+        <p class="panel-note">AI's take on your music taste, based on your top artists &amp; genres</p>
+        <div id="ai-profile-content" class="ai-profile-content"></div>
+        <button class="btn-secondary hidden" id="ai-regenerate-btn">Regenerate</button>
+      </div>
+
+      <div class="panel hidden" id="ai-recap-section">
+        <h2><span class="idx">10</span> AI Recap</h2>
+        <p class="panel-note">A written recap of your last ~50 plays</p>
+        <div id="ai-recap-content" class="ai-profile-content"></div>
+        <button class="btn-secondary hidden" id="ai-recap-regenerate-btn">Regenerate</button>
+      </div>
+    </section>
+
     <section class="panel panel-wide">
-      <h2><span class="idx">09</span> Playlists</h2>
+      <h2><span class="idx">11</span> Playlists</h2>
 
       <div id="top-playlists-section">
         <p class="panel-note">Top Playlists Listened — based on where your last ~50 plays came from</p>
@@ -151,6 +167,23 @@
 
       <p class="panel-note panel-note-spaced">All Playlists</p>
       <div class="playlist-grid" id="playlist-grid"></div>
+    </section>
+
+    <section class="panel panel-wide hidden" id="ai-chat-section">
+      <h2><span class="idx">12</span> Ask About Your Stats</h2>
+      <p class="panel-note">Chat with AI about your own listening data — it only knows what's on this dashboard</p>
+      <div class="ai-chat-messages" id="ai-chat-messages"></div>
+      <form class="ai-chat-form" id="ai-chat-form">
+        <input
+          type="text"
+          id="ai-chat-input"
+          class="ai-chat-input"
+          placeholder="e.g. What's my most niche genre?"
+          maxlength="500"
+          autocomplete="off"
+        />
+        <button type="submit" class="btn-secondary" id="ai-chat-send">Send</button>
+      </form>
     </section>
 
   </main>

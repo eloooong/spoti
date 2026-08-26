@@ -5,14 +5,18 @@ played songs, and what's playing right now.
 
 ```
 spotify-stats/
-├── server/          the backend (Node.js + Express)
-│   ├── server.js     handles login + talks to Spotify's API
-│   ├── package.json
-│   └── .env.example  template for your secret keys
-└── public/          the frontend (what you see in the browser)
-    ├── index.html
-    ├── style.css
-    └── app.js
+├── client/            the frontend (React + Vite + Tailwind + Kokonut UI)
+│   ├── src/
+│   │   ├── App.tsx          page shell: login view / dashboard
+│   │   ├── components/      dashboard panels & charts
+│   │   │   └── kokonutui/   Kokonut UI components (animated backgrounds,
+│   │   │                    shimmer text, glass/spotlight cards, buttons)
+│   │   └── lib/api.ts       typed wrappers for the backend endpoints
+│   └── dist/                built frontend (generated, served by Express)
+└── server/            the backend (Node.js + Express)
+    ├── server.js        handles login + talks to Spotify's API
+    ├── package.json
+    └── .env.example     template for your secret keys
 ```
 
 ## How it works, in plain terms
@@ -45,10 +49,20 @@ page sees it.
 
 ## Part 2: Run it on your own computer first
 
-You'll need [Node.js](https://nodejs.org) installed (version 18 or newer).
+You'll need [Node.js](https://nodejs.org) installed (version 20 or newer).
+
+The project has two halves: the **server** (`server/`) and the **React
+frontend** (`client/`). For everyday development you run both; to just use
+the app, build the frontend once and let Express serve it.
+
+### Quick start (use the app)
 
 ```bash
-cd server
+cd client
+npm install
+npm run build      # builds the frontend into client/dist
+
+cd ../server
 npm install
 cp .env.example .env
 ```
@@ -60,6 +74,7 @@ SPOTIFY_CLIENT_ID=paste_your_client_id_here
 SPOTIFY_CLIENT_SECRET=paste_your_client_secret_here
 SPOTIFY_REDIRECT_URI=http://127.0.0.1:8888/callback
 STATE_SECRET=any_random_string_you_want
+GROQ_API_KEY=only_needed_for_the_AI_features
 PORT=8888
 ```
 
@@ -71,6 +86,24 @@ npm start
 
 Open your browser to **http://127.0.0.1:8888**, click **Connect Spotify**,
 log in, and you should land back on your dashboard with your stats.
+
+> The AI features (Taste Profile, Recap, Chat) only appear if
+> `GROQ_API_KEY` is set — get a free key at https://console.groq.com.
+
+### Development mode (hot reload)
+
+While working on the frontend, run both processes:
+
+```bash
+# terminal 1 — backend on :8888
+cd server && npm start
+
+# terminal 2 — Vite dev server on :5173, with hot reload
+cd client && npm run dev
+```
+
+Then open **http://localhost:5173**. The dev server proxies `/api`,
+`/login`, `/callback`, and `/logout` to the backend automatically.
 
 > If you see "Nothing's spinning" and empty lists, that's normal if you
 > haven't played anything on Spotify recently, or if it's a brand-new
@@ -166,10 +199,15 @@ for a personal testing project.
 
 5. Fill in the settings:
    - **Name**: anything, e.g. `spotify-stats`
-   - **Root Directory**: `server`
+   - **Root Directory**: leave blank (the repo root)
    - **Runtime**: Node
-   - **Build Command**: `npm install`
-   - **Start Command**: `npm start`
+   - **Build Command**:
+     ```
+     cd client && npm install && npm run build && cd ../server && npm install
+     ```
+   - **Start Command**: `npm start --prefix server` (or set Root Directory
+     to `server` and use `npm start`, with the client built via a custom
+     build command as above)
    - **Instance Type**: Free
 
 6. Scroll to **Environment Variables** and add these (same values as your

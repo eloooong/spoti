@@ -6,6 +6,10 @@ server/certs
 
 # Dependencies — reinstalled via "npm install", no need to commit them
 server/node_modules
+client/node_modules
+
+# Built frontend — regenerated via "npm run build" in client/
+client/dist
 
 # OS/editor clutter
 .DS_Store
