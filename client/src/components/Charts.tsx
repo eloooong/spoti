@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Clock } from "lucide-react";
+import { Clock, Disc3 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import type { RecentlyPlayedEntry } from "@/lib/api";
+import type { Artist, RecentlyPlayedEntry, Track } from "@/lib/api";
 import { ChartEmpty, Panel, SkeletonLines } from "@/components/Panel";
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
 
@@ -291,6 +291,244 @@ export function DailyTop({ items }: ClockRoutineProps) {
             <Bar barSize={12} dataKey="trackCount" fill="var(--color-trackCount)" radius={4} />
           </BarChart>
         </ChartContainer>
+      )}
+    </Panel>
+  );
+}
+
+// ─── Your Sound (top genres) ──────────────────────────────────────────────────
+// Genre frequency across your top artists in the selected range — pure
+// Spotify genre tags, no audio-features inference. Counts are per artist
+// appearance, not per play.
+
+const yourSoundConfig = {
+  count: { color: GREEN, label: "Artists" },
+} satisfies ChartConfig;
+
+interface GenreRow {
+  genre: string;
+  count: number;
+}
+
+function buildGenreCounts(artists: Artist[]): GenreRow[] {
+  const counts = new Map<string, { label: string; count: number }>();
+  artists.forEach((a) => {
+    (a.genres ?? []).forEach((raw) => {
+      const key = raw.toLowerCase().trim();
+      if (!key) return;
+      const entry = counts.get(key);
+      if (entry) entry.count += 1;
+      else counts.set(key, { label: raw.trim(), count: 1 });
+    });
+  });
+  return [...counts.values()]
+    .map(({ label, count }) => ({ genre: label, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+}
+
+export function YourSound({ artists }: { artists: Artist[] | null }) {
+  const data = artists ? buildGenreCounts(artists) : null;
+
+  return (
+    <Panel
+      note="Most common genres across your top artists in this range — switch the range tabs above to compare"
+      title="Your Sound"
+    >
+      {data === null ? (
+        <div className="h-72 pt-6">
+          <SkeletonLines rows={6} />
+        </div>
+      ) : data.length === 0 ? (
+        <ChartEmpty icon={Disc3}>
+          Not enough genre data yet — Spotify doesn't tag every artist with a genre.
+        </ChartEmpty>
+      ) : (
+        <ChartContainer className="aspect-auto h-72 w-full" config={yourSoundConfig}>
+          <BarChart data={data} layout="vertical" margin={{ left: 8, right: 12 }}>
+            <CartesianGrid stroke={GRID_LINE} horizontal={false} />
+            <XAxis allowDecimals={false} tick={{ fill: DIM }} tickLine={false} type="number" />
+            <YAxis
+              axisLine={false}
+              dataKey="genre"
+              tick={{ fill: DIM }}
+              tickLine={false}
+              type="category"
+              width={110}
+            />
+            <ChartTooltip
+              content={({ active, payload }) => {
+                if (!(active && payload?.length)) return null;
+                const row = payload[0].payload as GenreRow;
+                return (
+                  <div className="max-w-56 rounded-lg border border-white/10 bg-popover p-3 text-xs shadow-xl">
+                    <div className="mb-1 font-semibold">{row.genre}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="size-2 shrink-0 rounded-full" style={{ background: GREEN }} />
+                      <span className="text-muted-foreground">Artists</span>
+                      <span className="ml-auto font-medium">{row.count}×</span>
+                    </div>
+                  </div>
+                );
+              }}
+              cursor={{ fill: "rgba(255,255,255,0.05)" }}
+            />
+            <Bar barSize={14} dataKey="count" fill="var(--color-count)" radius={4} />
+          </BarChart>
+        </ChartContainer>
+      )}
+    </Panel>
+  );
+}
+
+// ─── Obscurity Score ──────────────────────────────────────────────────────────
+// Average Spotify 0–100 popularity across your top artists + tracks,
+// inverted so higher = more niche. Histogram shows where your taste
+// clusters; extremes call out your deepest cut and biggest crowd-pleaser.
+
+const obscurityConfig = {
+  artists: { color: GREEN, label: "Artists" },
+  tracks: { color: BRIGHT_GREEN, label: "Tracks" },
+} satisfies ChartConfig;
+
+const OBSCURITY_BUCKETS = ["0–20", "21–40", "41–60", "61–80", "81–100"];
+
+interface ObscurityBucket {
+  bucket: string;
+  artists: number;
+  tracks: number;
+}
+
+function obscurityLabel(score: number): string {
+  if (score >= 81) return "Deep-Cut Diver";
+  if (score >= 61) return "Explorer";
+  if (score >= 41) return "Balanced";
+  if (score >= 21) return "Crowd Pleaser";
+  return "Mainstream";
+}
+
+export function ObscurityPanel({
+  artists,
+  tracks,
+}: {
+  artists: Artist[] | null;
+  tracks: Track[] | null;
+}) {
+  const loading = artists === null || tracks === null;
+
+  let score: number | null = null;
+  let buckets: ObscurityBucket[] | null = null;
+  let mostObscure: string | null = null;
+  let mostMainstream: string | null = null;
+
+  if (!loading) {
+    const artistPops = (artists ?? []).filter(
+      (a): a is Artist & { popularity: number } => typeof a.popularity === "number"
+    );
+    const trackPops = (tracks ?? []).filter(
+      (t): t is Track & { popularity: number } => typeof t.popularity === "number"
+    );
+    const all = [...artistPops.map((a) => a.popularity), ...trackPops.map((t) => t.popularity)];
+
+    if (all.length > 0) {
+      const avg = all.reduce((sum, p) => sum + p, 0) / all.length;
+      score = Math.round(100 - avg);
+
+      const bucketCounts = (pops: number[]): number[] => {
+        const counts = [0, 0, 0, 0, 0];
+        pops.forEach((p) => {
+          const idx = p <= 20 ? 0 : p <= 40 ? 1 : p <= 60 ? 2 : p <= 80 ? 3 : 4;
+          counts[idx] += 1;
+        });
+        return counts;
+      };
+      const artistBuckets = bucketCounts(artistPops.map((a) => a.popularity));
+      const trackBuckets = bucketCounts(trackPops.map((t) => t.popularity));
+      buckets = OBSCURITY_BUCKETS.map((bucket, i) => ({
+        bucket,
+        artists: artistBuckets[i],
+        tracks: trackBuckets[i],
+      }));
+
+      const named = [
+        ...artistPops.map((a) => ({ name: a.name, pop: a.popularity })),
+        ...trackPops.map((t) => ({ name: t.name, pop: t.popularity })),
+      ].sort((a, b) => a.pop - b.pop);
+      mostObscure = named[0] ? `${named[0].name} (${named[0].pop})` : null;
+      const top = named[named.length - 1];
+      mostMainstream = top ? `${top.name} (${top.pop})` : null;
+    }
+  }
+
+  return (
+    <Panel
+      note="From Spotify's 0–100 popularity scores across your top artists & tracks in this range — higher means more niche"
+      title="Obscurity Score"
+    >
+      {loading ? (
+        <div className="h-72 pt-6">
+          <SkeletonLines rows={6} />
+        </div>
+      ) : score === null || !buckets ? (
+        <ChartEmpty icon={Disc3}>
+          Not enough popularity data yet for this range.
+        </ChartEmpty>
+      ) : (
+        <>
+          <div className="flex items-baseline gap-3">
+            <span className="font-display text-4xl font-extrabold text-white">{score}</span>
+            <span className="text-sm font-medium text-primary">{obscurityLabel(score)}</span>
+          </div>
+          <ChartContainer className="aspect-auto h-60 w-full" config={obscurityConfig}>
+            <BarChart data={buckets} margin={{ left: -20, right: 12 }}>
+              <CartesianGrid stroke={GRID_LINE} vertical={false} />
+              <XAxis
+                axisLine={false}
+                dataKey="bucket"
+                tick={{ fill: DIM }}
+                tickLine={false}
+                tickMargin={8}
+              />
+              <YAxis allowDecimals={false} axisLine={false} tick={{ fill: DIM }} tickLine={false} />
+              <ChartTooltip
+                content={({ active, payload, label }) => {
+                  if (!(active && payload?.length)) return null;
+                  return (
+                    <div className="max-w-56 rounded-lg border border-white/10 bg-popover p-3 text-xs shadow-xl">
+                      <div className="mb-1.5 font-semibold">Popularity {label}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="size-2 shrink-0 rounded-full" style={{ background: GREEN }} />
+                        <span className="text-muted-foreground">Artists</span>
+                        <span className="ml-auto font-medium">
+                          {(payload.find((p) => p.dataKey === "artists")?.value as number) ?? 0}×
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span
+                          className="size-2 shrink-0 rounded-full"
+                          style={{ background: BRIGHT_GREEN }}
+                        />
+                        <span className="text-muted-foreground">Tracks</span>
+                        <span className="ml-auto font-medium">
+                          {(payload.find((p) => p.dataKey === "tracks")?.value as number) ?? 0}×
+                        </span>
+                      </div>
+                    </div>
+                  );
+                }}
+                cursor={{ fill: "rgba(255,255,255,0.05)" }}
+              />
+              <Bar barSize={12} dataKey="artists" fill="var(--color-artists)" radius={4} />
+              <Bar barSize={12} dataKey="tracks" fill="var(--color-tracks)" radius={4} />
+            </BarChart>
+          </ChartContainer>
+          {mostObscure && mostMainstream && (
+            <p className="mt-2 truncate font-mono text-xs text-muted-foreground">
+              Deepest cut: <span className="text-white/70">{mostObscure}</span>
+              {" · "}Biggest crowd-pleaser: <span className="text-white/70">{mostMainstream}</span>
+            </p>
+          )}
+        </>
       )}
     </Panel>
   );

@@ -19,6 +19,12 @@ const ListeningHeatmap = lazy(() =>
 const DailyTop = lazy(() =>
   import("./components/Charts").then((m) => ({ default: m.DailyTop }))
 );
+const YourSound = lazy(() =>
+  import("./components/Charts").then((m) => ({ default: m.YourSound }))
+);
+const ObscurityPanel = lazy(() =>
+  import("./components/Charts").then((m) => ({ default: m.ObscurityPanel }))
+);
 
 function LoginView() {
   return (
@@ -121,6 +127,15 @@ function Dashboard() {
       <Suspense fallback={<ChartPanelSkeleton title="When You Listen" />}>
         <ListeningHeatmap items={recent} />
       </Suspense>
+
+      <section className="grid gap-6 md:grid-cols-2">
+        <Suspense fallback={<ChartPanelSkeleton title="Your Sound" />}>
+          <YourSound artists={artists} />
+        </Suspense>
+        <Suspense fallback={<ChartPanelSkeleton title="Obscurity Score" />}>
+          <ObscurityPanel artists={artists} tracks={tracks} />
+        </Suspense>
+      </section>
 
       <section className="grid gap-6 md:grid-cols-2">
         <LibrarySnapshotPanel />
