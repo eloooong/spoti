@@ -352,6 +352,15 @@ async function ensureFreshToken(sessionId) {
   return session.access_token;
 }
 
+function sendSpotifyError(res, err) {
+  const upstream = err.response?.data;
+  const message = typeof upstream === "string" ? upstream : upstream?.error?.message || "";
+  if (/premium subscription required/i.test(message)) {
+    return res.status(403).json({ error: "premium_required" });
+  }
+  return res.status(502).json({ error: "spotify_api_error" });
+}
+
 // Small wrapper so every /api route follows the same "am I logged in?" pattern.
 function apiRoute(routePath, spotifyUrl) {
   app.get(routePath, async (req, res) => {
@@ -367,7 +376,7 @@ function apiRoute(routePath, spotifyUrl) {
         return res.status(401).json({ error: "not_logged_in" });
       }
       console.error(`Error on ${routePath}:`, err.response?.data || err.message);
-      res.status(500).json({ error: "spotify_api_error" });
+      sendSpotifyError(res, err);
     }
   });
 }

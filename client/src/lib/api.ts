@@ -86,12 +86,26 @@ async function fetchAi<T>(url: string): Promise<AiResult<T>> {
   }
 }
 
+export type ApiFailure = "premium_required" | "not_logged_in" | "unavailable";
+const errorListeners = new Set<(failure: ApiFailure) => void>();
+
+export function onApiError(listener: (failure: ApiFailure) => void) {
+  errorListeners.add(listener);
+  return () => { errorListeners.delete(listener); };
+}
+
 async function fetchJSON<T>(url: string): Promise<T | null> {
   try {
     const res = await fetch(url);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      const failure: ApiFailure = body?.error === "premium_required" ? "premium_required" : res.status === 401 ? "not_logged_in" : "unavailable";
+      if (url !== "/api/status") errorListeners.forEach((listener) => listener(failure));
+      return null;
+    }
     return (await res.json()) as T;
   } catch {
+    if (url !== "/api/status") errorListeners.forEach((listener) => listener("unavailable"));
     return null;
   }
 }

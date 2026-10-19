@@ -1,9 +1,8 @@
+import { Music2, UserRound } from "lucide-react";
 import { motion } from "motion/react";
-import { Music2 } from "lucide-react";
 import type { Artist, TimeRange, Track } from "@/lib/api";
 import { ChartEmpty, Panel, SkeletonLines } from "@/components/Panel";
 
-import { useLayoutEffect, useRef, useState } from "react";
 
 const RANGES: { value: TimeRange; label: string }[] = [
   { value: "short_term", label: "Last 4 weeks" },
@@ -11,9 +10,7 @@ const RANGES: { value: TimeRange; label: string }[] = [
   { value: "long_term", label: "All time" },
 ];
 
-// Sliding-indicator tab strip, adapted from Kokonut UI's SmoothTab
-// mechanics: the active pill is measured from the selected button's rect
-// and springs between tabs. Controlled — range state lives in Dashboard.
+// Native buttons keep every range reachable by keyboard and touch.
 export function RangeTabs({
   range,
   onChange,
@@ -21,85 +18,31 @@ export function RangeTabs({
   range: TimeRange;
   onChange: (range: TimeRange) => void;
 }) {
-  const buttonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 0, left: 0 });
-
-  useLayoutEffect(() => {
-    const updateDimensions = () => {
-      const selectedButton = buttonRefs.current.get(range);
-      const container = containerRef.current;
-
-      if (selectedButton && container) {
-        const rect = selectedButton.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-
-        setDimensions({
-          width: rect.width,
-          left: rect.left - containerRect.left,
-        });
-      }
-    };
-
-    // Initial measure after first paint.
-    const raf = requestAnimationFrame(updateDimensions);
-    window.addEventListener("resize", updateDimensions);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("resize", updateDimensions);
-    };
-  }, [range]);
-
   return (
     <div
       aria-label="Time range"
-      className="relative mx-auto flex w-full max-w-md items-center rounded-xl border border-white/10 bg-white/[0.03] py-1 backdrop-blur-sm"
-      ref={containerRef}
-      role="tablist"
+      className="grid w-full grid-cols-3 gap-1 rounded-xl border border-white/10 bg-white/[0.025] p-1 sm:w-auto"
+      role="group"
     >
-      {/* Sliding active pill */}
-      <motion.div
-        animate={{
-          width: dimensions.width - 8,
-          x: dimensions.left + 4,
-          opacity: 1,
-        }}
-        className="absolute z-[1] rounded-lg bg-primary shadow-[0_4px_16px_rgba(29,185,84,0.35)]"
-        initial={false}
-        style={{ height: "calc(100% - 8px)", top: "4px" }}
-        transition={{
-          type: "spring",
-          stiffness: 400,
-          damping: 30,
-        }}
-      />
-
-      <div className="relative z-[2] grid w-full grid-cols-3 gap-1">
         {RANGES.map(({ value, label }) => {
           const isSelected = range === value;
           return (
             <button
-              aria-selected={isSelected}
-              className={`flex items-center justify-center rounded-lg px-2 py-2 text-sm font-medium truncate transition-colors duration-300 outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              aria-pressed={isSelected}
+              className={`relative flex min-h-11 items-center justify-center whitespace-nowrap rounded-lg px-2 py-2 text-xs font-medium transition-colors sm:px-4 ${
                 isSelected
                   ? "text-black"
-                  : "text-white/60 hover:text-white focus-visible:text-white"
+                  : "text-muted-foreground hover:bg-white/5 hover:text-white"
               }`}
               key={value}
               onClick={() => onChange(value)}
-              ref={(el) => {
-                if (el) buttonRefs.current.set(value, el);
-                else buttonRefs.current.delete(value);
-              }}
-              role="tab"
-              tabIndex={isSelected ? 0 : -1}
               type="button"
             >
-              <span className="truncate">{label}</span>
+              {isSelected && <motion.span aria-hidden="true" layoutId="time-range-indicator" className="absolute inset-0 rounded-lg bg-primary shadow-[0_4px_16px_rgba(29,185,84,0.25)]" transition={{ type: "spring", stiffness: 400, damping: 30 }} />}
+              <span className="relative z-10 truncate">{label}</span>
             </button>
           );
         })}
-      </div>
     </div>
   );
 }
@@ -120,17 +63,17 @@ function RankedList({
           className="group flex items-center gap-4 rounded-xl p-2 transition-colors duration-200 hover:bg-white/[0.05]"
           key={`${item.rank}-${item.name}`}
         >
-          <span className="w-6 shrink-0 font-mono text-xs text-white/40 group-hover:text-primary">
+          <span className="w-6 shrink-0 font-mono text-xs text-muted-foreground group-hover:text-primary">
             {String(item.rank).padStart(2, "0")}
           </span>
-          <img
+          {item.image ? <img
             alt=""
             className="h-10 w-10 shrink-0 rounded-lg bg-white/[0.06] object-cover"
             loading="lazy"
             src={item.image}
-          />
+          /> : <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-white/5"><UserRound className="size-4 text-muted-foreground" aria-hidden="true" /></span>}
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold text-white">{item.name}</span>
+            <span className="block truncate text-sm font-semibold text-white" title={item.name}>{item.name}</span>
             <span className="block truncate text-xs text-muted-foreground">{item.sub}</span>
             {typeof item.popularity === "number" && (
               <span

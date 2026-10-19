@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { DataUnavailableContext } from "@/lib/data-state";
 import { ListMusic } from "lucide-react";
 import { api, type LibrarySnapshot as SnapshotData, type Playlist, type RecentlyPlayedEntry } from "@/lib/api";
 import { ChartEmpty, Panel, SkeletonLines } from "@/components/Panel";
@@ -34,14 +35,15 @@ function useCountUp(value: number | undefined) {
 function StatCard({ label, value }: { label: string; value: number | undefined }) {
   const display = useCountUp(value);
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4 text-center transition-colors duration-200 hover:border-primary/40">
-      <div className="font-display text-2xl font-extrabold text-white">{display}</div>
-      <div className="mt-1 text-xs text-muted-foreground">{label}</div>
+    <div className="py-3">
+      <div className="font-display text-3xl font-semibold text-white tabular-nums">{display}</div>
+      <div className="mt-2 text-xs text-muted-foreground">{label}</div>
     </div>
   );
 }
 
 export function LibrarySnapshotPanel() {
+  const unavailable = useContext(DataUnavailableContext);
   const [data, setData] = useState<SnapshotData | null>(null);
 
   useEffect(() => {
@@ -50,12 +52,12 @@ export function LibrarySnapshotPanel() {
 
   return (
     <Panel title="Library Snapshot">
-      <div className="grid grid-cols-2 gap-3">
+      {unavailable && !data ? <ChartEmpty icon={ListMusic}>Your library is unavailable.</ChartEmpty> : <div className="grid grid-cols-2 gap-x-8 gap-y-2">
         <StatCard label="Followed artists" value={data?.followedArtists} />
         <StatCard label="Liked songs" value={data?.savedTracks} />
         <StatCard label="Saved albums" value={data?.savedAlbums} />
         <StatCard label="Playlists" value={data?.playlists} />
-      </div>
+      </div>}
     </Panel>
   );
 }
@@ -136,7 +138,7 @@ export function MostPlayedPlaylistsPanel({ recent }: { recent: RecentlyPlayedEnt
                 />
               ) : (
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-primary opacity-70">
-                  ◐
+                  <ListMusic className="size-4" aria-hidden="true" />
                 </span>
               )}
               <span className="min-w-0 flex-1">
@@ -177,6 +179,7 @@ export function MostPlayedPlaylistsPanel({ recent }: { recent: RecentlyPlayedEnt
 // Compact horizontal card for the scrolling carousel strip — artwork on the
 // left, name + track count on the right, fits ~150px-wide slots.
 function PlaylistStripCard({
+  name,
   image,
   url,
 }: {
@@ -194,19 +197,20 @@ function PlaylistStripCard({
     />
   ) : (
     <span className="flex h-28 w-28 shrink-0 items-center justify-center rounded-xl bg-white/[0.04] text-4xl text-primary opacity-50">
-      ◐
+      <ListMusic className="size-8" aria-hidden="true" />
     </span>
   );
 
   const classes =
-    "block shrink-0 overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.03] p-0 transition-colors duration-200 hover:border-primary/40";
+    "block w-28 shrink-0 rounded-xl text-sm transition-colors duration-200 hover:text-primary";
 
   return url ? (
-    <a className={classes} href={url} rel="noreferrer" target="_blank">
+    <a className={classes} href={url} rel="noreferrer" target="_blank" title={name}>
       {inner}
+      <span className="mt-2 block truncate text-xs">{name}</span>
     </a>
   ) : (
-    <div className={classes}>{inner}</div>
+    <div className={classes}>{inner}<span className="mt-2 block truncate text-xs">{name}</span></div>
   );
 }
 
@@ -223,6 +227,7 @@ function PlaylistCarousel({ playlists }: { playlists: Playlist[] }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const scrollPos = useRef(0);
   const isDragging = useRef(false);
+  const paused = useRef(false);
   const velocity = useRef(0);
   const lastMoveTime = useRef(0);
   const lastPointerX = useRef(0);
@@ -249,12 +254,12 @@ function PlaylistCarousel({ playlists }: { playlists: Playlist[] }) {
   );
 
   useEffect(() => {
-    if (halfWidth <= 0 || playlists.length === 0) return;
+    if (halfWidth <= 0 || playlists.length === 0 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let raf = 0;
     let lastTime = performance.now();
 
     const tick = (now: number) => {
-      if (!isDragging.current) {
+      if (!isDragging.current && !paused.current) {
         const dt = (now - lastTime) / 1000;
         if (Math.abs(velocity.current) > MIN_VELOCITY) {
           scrollPos.current = clamp(scrollPos.current + velocity.current * dt * 60);
@@ -282,6 +287,7 @@ function PlaylistCarousel({ playlists }: { playlists: Playlist[] }) {
     };
 
     const onPointerDown = (e: PointerEvent) => {
+      if (!trackRef.current?.contains(e.target as Node)) return;
       if (e.button !== 0) return;
       clearResumeTimer();
       isDragging.current = true;
@@ -408,7 +414,11 @@ function PlaylistCarousel({ playlists }: { playlists: Playlist[] }) {
     <div className="group/carousel -mx-2 overflow-hidden px-2" role="region" aria-label="Playlist carousel">
       <div
         ref={trackRef}
-        className="no-scrollbar flex cursor-grab gap-4 overflow-hidden select-none active:cursor-grabbing"
+        onMouseEnter={() => { paused.current = true; }}
+        onMouseLeave={() => { paused.current = !!trackRef.current?.contains(document.activeElement); }}
+        onFocusCapture={() => { paused.current = true; }}
+        onBlurCapture={(event) => { paused.current = !!event.currentTarget.contains(event.relatedTarget as Node | null); }}
+        className="playlist-track flex cursor-grab gap-4 overflow-x-auto pb-3 select-none active:cursor-grabbing"
         style={{ scrollbarWidth: "none" }}
       >
         {items.map((p, i) => (

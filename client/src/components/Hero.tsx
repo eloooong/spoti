@@ -1,181 +1,63 @@
-import { useEffect, useState } from "react";
-import { motion } from "motion/react";
-import { api, formatDuration, type NowPlaying as NowPlayingData } from "@/lib/api";
-import { panelVariants } from "@/components/Panel";
+import { useContext, useEffect, useState } from "react";
+import { useReducedMotion } from "motion/react";
+import { ArrowUpRight, AudioLines, Disc3, Pause } from "lucide-react";
+import { api, formatDuration, type NowPlaying } from "@/lib/api";
+import { DataUnavailableContext } from "@/lib/data-state";
 import BeamsBackground from "@/components/kokonutui/beams-background";
 
-// Animated equalizer bars — heights jitter via CSS animation when playing.
-function EqualizerBars({ active }: { active: boolean }) {
-  return (
-    <div className="flex h-5 items-end gap-[3px]" aria-hidden="true">
-      {[0, 1, 2, 3, 4].map((i) => (
-        <span
-          className={active ? "eq-bar" : "eq-bar eq-bar-idle"}
-          key={i}
-          style={active ? { animationDelay: `${i * 0.12}s` } : undefined}
-        />
-      ))}
-    </div>
-  );
-}
-
 export function Hero() {
-  const [data, setData] = useState<NowPlayingData | null>(null);
-  // Progress snapshot from the last poll; advanced client-side every second
-  // so the bar sweeps smoothly instead of jumping every 15 seconds.
-  const [progressBase, setProgressBase] = useState<{ ms: number; at: number } | null>(null);
+  const reducedMotion = useReducedMotion();
+  const [data, setData] = useState<NowPlaying | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [snapshot, setSnapshot] = useState(() => ({ progress: 0, at: Date.now() }));
   const [now, setNow] = useState(() => Date.now());
-
+  const unavailable = useContext(DataUnavailableContext);
   useEffect(() => {
     let cancelled = false;
-
     async function load() {
       const next = await api.nowPlaying();
       if (!cancelled) {
         setData(next);
-        setProgressBase(
-          typeof next?.progress_ms === "number"
-            ? { ms: next.progress_ms, at: Date.now() }
-            : null
-        );
+        setSnapshot({ progress: next?.progress_ms ?? 0, at: Date.now() });
         setNow(Date.now());
+        setLoading(false);
       }
     }
-
     load();
     const interval = setInterval(load, 15000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
+    return () => { cancelled = true; clearInterval(interval); };
   }, []);
-
-  // Advance the interpolated progress once a second while playing. Paused
-  // tracks stay frozen at their polled position.
   useEffect(() => {
     if (!data?.is_playing) return;
     const ticker = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(ticker);
   }, [data?.is_playing]);
 
-  const track = data?.item ?? null;
-  const coverUrl = track?.album?.images?.[0]?.url;
-  const isPlaying = !!data?.is_playing;
-
-  const durationMs = typeof track?.duration_ms === "number" ? track.duration_ms : null;
-  let liveProgress: number | null = null;
-  if (progressBase && durationMs) {
-    liveProgress = isPlaying
-      ? Math.min(durationMs, progressBase.ms + (now - progressBase.at))
-      : Math.min(progressBase.ms, durationMs);
-  }
-  const pct = liveProgress !== null ? (liveProgress / durationMs!) * 100 : 0;
-
-  const badges: string[] = [];
-  if (data?.device?.name) badges.push(data.device.name);
-  if (data?.shuffle_state) badges.push("Shuffle on");
-  if (data?.repeat_state && data.repeat_state !== "off")
-    badges.push(`Repeat ${data.repeat_state === "track" ? "one" : "all"}`);
-  if (typeof data?.device?.volume_percent === "number")
-    badges.push(`Vol ${data.device.volume_percent}%`);
-
+  const track = data?.item;
+  const cover = track?.album?.images?.[0]?.url;
+  const duration = track?.duration_ms ?? 0;
+  const progress = Math.min(duration, snapshot.progress + (data?.is_playing ? now - snapshot.at : 0));
+  const spotifyUrl = track?.id ? `https://open.spotify.com/track/${encodeURIComponent(track.id)}` : "https://open.spotify.com/";
   return (
-    <motion.section
-      className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-card p-8 md:p-12"
-      variants={panelVariants}
-    >
-      {/* Kokonut UI animated beams backdrop */}
-      <BeamsBackground intensity="subtle" />
-
-      {/* First-load skeleton: mirrors the hero layout while /api/now-playing
-          resolves, so the panel never shows an empty "nothing" state only to
-          replace it with content moments later. */}
-      {!data ? (
-        <div className="relative z-10 flex flex-col items-center gap-8 md:flex-row">
-          <div className="skeleton h-48 w-48 shrink-0 rounded-2xl bg-white/[0.06] md:h-56 md:w-56" />
-          <div className="min-w-0 flex-1">
-            <div className="skeleton h-2.5 w-20 rounded-full bg-white/10" />
-            <div className="skeleton mt-4 h-8 w-3/5 rounded-lg bg-white/10" />
-            <div className="skeleton mt-3 h-4 w-2/5 rounded-full bg-white/10" />
-            <div className="skeleton mt-6 h-1.5 w-full max-w-md rounded-full bg-white/10" />
-          </div>
+    <section className="playback-panel relative isolate overflow-hidden rounded-2xl p-5 sm:p-6" aria-label="Current playback">
+      {!reducedMotion && <BeamsBackground intensity="subtle" />}
+      <div className="relative z-10 flex items-center gap-5 sm:gap-6">
+        <div className="playback-cover relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-xl sm:size-28">
+          {cover ? <img alt={`${track?.album?.name || "Album"} cover`} className="size-full object-cover" src={cover} /> : <Disc3 className="size-11 text-primary/70 sm:size-14" strokeWidth={1} aria-hidden="true" />}
         </div>
-      ) : (
-        <div className="relative z-10 flex flex-col items-center gap-8 md:flex-row">
-        <div className="relative shrink-0">
-          {coverUrl ? (
-            <img
-              alt={`${track?.album?.name || "Album"} cover art`}
-              className="h-48 w-48 rounded-2xl object-cover shadow-2xl md:h-56 md:w-56"
-              src={coverUrl}
-            />
-          ) : (
-            <div className="flex h-48 w-48 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-6xl opacity-60 md:h-56 md:w-56">
-              ◐
-            </div>
-          )}
-          <div className="absolute -bottom-3 -right-3 rounded-xl bg-black/80 px-3 py-2 backdrop-blur">
-            <EqualizerBars active={isPlaying} />
-          </div>
-        </div>
-
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-xs tracking-[0.2em] text-primary uppercase">
-            {!track ? "Right now" : isPlaying ? "Now playing" : "Paused"}
-          </p>
-          <h1
-            className="font-display mt-2 truncate font-extrabold tracking-[-0.02em] text-white"
-            style={{ fontSize: "clamp(1.75rem, 4vw, 2.5rem)", lineHeight: 1.15 }}
-          >
-            {track ? (
-              track.name
-            ) : (
-              <span className="text-muted-foreground">Nothing's spinning</span>
-            )}
-          </h1>
-          <p className="mt-2 truncate text-lg text-white/70">
-            {track ? track.artists.map((a) => a.name).join(", ") : "Press play on Spotify to see it here."}
-          </p>
-
-          {liveProgress !== null && (
-            <div className="mt-5 max-w-md">
-              <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-1000 ease-linear"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-              <div className="mt-1.5 flex justify-between font-mono text-xs text-white/50">
-                <span>{formatDuration(liveProgress)}</span>
-                <span>{formatDuration(durationMs!)}</span>
-              </div>
-            </div>
-          )}
-
-          {badges.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {badges.map((badge) => (
-                <span
-                  className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 font-mono text-xs text-white/70"
-                  key={badge}
-                >
-                  {badge}
-                </span>
-              ))}
-            </div>
-          )}
+          <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+            {data?.is_playing ? <AudioLines className="size-3.5 text-primary" aria-hidden="true" /> : <Pause className="size-3.5" aria-hidden="true" />}
+            {loading ? "Checking playback" : unavailable ? "Playback unavailable" : data?.is_playing ? "Now playing" : track ? "Paused" : "Not playing"}
+            {data?.device?.name && <span className="hidden border-l border-white/15 pl-2 sm:inline">{data.device.name}</span>}
+          </div>
+          {loading ? <div className="skeleton h-7 w-3/4 max-w-64 rounded bg-white/10" /> : <h2 className="line-clamp-2 font-display text-lg font-semibold tracking-[-0.025em] sm:line-clamp-1 sm:text-2xl">{track?.name || (unavailable ? "A quiet moment for your dashboard." : "Nothing’s spinning. Yet.")}</h2>}
+          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{track ? track.artists.map((a) => a.name).join(", ") : unavailable ? "Your current track will appear when Spotify access is available." : "Put something on Spotify. We’ll take it from here."}</p>
+          {!!duration && <div className="mt-4 flex max-w-lg items-center gap-3"><span className="font-mono text-[11px] text-muted-foreground">{formatDuration(progress)}</span><div className="h-1 flex-1 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-label="Track progress" aria-valuenow={Math.round(progress / 1000)} aria-valuemin={0} aria-valuemax={Math.round(duration / 1000)}><div className="h-full rounded-full bg-primary" style={{ width: `${progress / duration * 100}%` }} /></div><span className="font-mono text-[11px] text-muted-foreground">{formatDuration(duration)}</span></div>}
         </div>
-        </div>
-      )}
-
-      {/* Ambient glow tinted by the artwork */}
-      {coverUrl && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-0 opacity-25 blur-3xl"
-          style={{ backgroundImage: `url("${coverUrl}")`, backgroundSize: "cover" }}
-        />
-      )}
-    </motion.section>
+        <a className="secondary-button hidden shrink-0 sm:flex" href={spotifyUrl} rel="noreferrer" target="_blank">Open Spotify <ArrowUpRight className="size-3.5" aria-hidden="true" /></a>
+      </div>
+      <a className="relative z-10 mt-5 flex min-h-11 items-center justify-center gap-2 border-t border-white/10 pt-4 text-sm text-primary sm:hidden" href={spotifyUrl} rel="noreferrer" target="_blank">Open Spotify <ArrowUpRight className="size-3.5" aria-hidden="true" /></a>
+    </section>
   );
 }
