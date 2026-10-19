@@ -1,310 +1,201 @@
-# SpotiStats — Your Spotify Stats Dashboard
+<p align="center">
+  <img src="docs/assets/spotistats-banner.svg" alt="SpotiStats" width="100%" />
+</p>
 
-A small web app that shows your Spotify top artists, top tracks, recently
-played songs, and what's playing right now.
+<p align="center">
+  <strong>Your listening, in focus.</strong><br />
+  A personal Spotify dashboard for the songs, artists, and habits that make your sound.
+</p>
 
-```
-spotify-stats/
-├── client/            the frontend (React + Vite + Tailwind + Kokonut UI)
-│   ├── src/
-│   │   ├── App.tsx          page shell: login view / dashboard
-│   │   ├── components/      dashboard panels & charts
-│   │   │   └── kokonutui/   Kokonut UI components (animated backgrounds,
-│   │   │                    shimmer text, glass/spotlight cards, buttons)
-│   │   └── lib/api.ts       typed wrappers for the backend endpoints
-│   └── dist/                built frontend (generated, served by Express)
-└── server/            the backend (Node.js + Express)
-    ├── server.js        handles login + talks to Spotify's API
-    ├── package.json
-    └── .env.example     template for your secret keys
-```
+<p align="center">
+  <a href="#features">Features</a> ·
+  <a href="#getting-started">Getting started</a> ·
+  <a href="#configuration">Configuration</a> ·
+  <a href="#deployment">Deployment</a>
+</p>
 
-## How it works, in plain terms
+SpotiStats brings your listening data into a responsive interface built with React, TypeScript, and Kokonut UI. Explore your favorites over time, discover patterns in recent plays, and optionally use AI to reflect on your music taste.
 
-1. You click "Connect Spotify" → sent to Spotify's own login page.
-2. You approve access → Spotify sends you back with a temporary code.
-3. Our server trades that code for an **access token** (like a key that
-   proves you're logged in).
-4. The server uses that key to ask Spotify for your top tracks, top
-   artists, and recent plays, and sends them to the webpage to display.
+## Preview
 
-Your Spotify password never touches our code — only Spotify's own login
-page sees it.
+![SpotiStats sign-in screen with Replay S branding and animated Kokonut UI background](docs/assets/sign-in.png)
 
----
+*The sign-in screen. Dashboard content is loaded from your connected Spotify account.*
 
-## Part 1: Get your Spotify API credentials
+## Features
 
-1. Go to https://developer.spotify.com/dashboard and log in with your
-   normal Spotify account.
-2. Click **Create app**. Fill in any name/description you like.
-3. For **Redirect URI**, enter exactly:
-   ```
-   http://127.0.0.1:8888/callback
-   ```
-   (You can add more redirect URIs later once you deploy — see Part 3.)
-4. Check the box agreeing to Spotify's terms, then **Save**.
-5. On the app's page, click **Settings** to find your **Client ID** and
-   **Client Secret** (click "View client secret" to reveal it).
+| Area | What you can explore |
+| --- | --- |
+| **Favorites** | Top artists and tracks across Spotify's short-term, medium-term, and long-term ranges. |
+| **Listening patterns** | A weekly heatmap, daily favorites, and playlist activity based on your latest 50 plays. |
+| **Your sound** | Genre distribution and an obscurity score derived from available Spotify popularity data. |
+| **Current playback** | Album artwork, track details, playback progress, and device name, refreshed every 15 seconds. |
+| **Library** | Counts of followed artists, liked songs, saved albums, and playlists, plus a playlist carousel. |
+| **Optional AI insights** | A taste profile, recent-listening recap, and chat about your stats, powered by Groq. |
+| **Interface** | Responsive layouts, keyboard controls, reduced-motion support, spotlight cards, animated beams, and an interactive dot background. |
 
-## Part 2: Run it on your own computer first
+## Technology
 
-You'll need [Node.js](https://nodejs.org) installed (version 20 or newer).
+| Layer | Stack |
+| --- | --- |
+| Frontend | React, TypeScript, Vite, Tailwind CSS, Kokonut UI, Motion, Recharts |
+| Backend | Node.js, Express, Axios |
+| Integrations | Spotify Web API; optional Groq API |
+| Sessions | In-memory storage locally; optional PostgreSQL persistence |
 
-The project has two halves: the **server** (`server/`) and the **React
-frontend** (`client/`). For everyday development you run both; to just use
-the app, build the frontend once and let Express serve it.
+## Getting started
 
-### Quick start (use the app)
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) **22.12 or newer** and npm.
+- A Spotify developer app with its Client ID and Client Secret.
+- Optional: a Groq API key for AI features and PostgreSQL for persistent sessions.
+
+> [!IMPORTANT]
+> Spotify requires the **owner of a Development Mode app to have an active Premium subscription**. Additional users must be added to the app's allowlist. Successful sign-in alone does not guarantee access to listening data. See [Spotify's quota modes](https://developer.spotify.com/documentation/web-api/concepts/quota-modes) for current requirements.
+
+### 1. Clone and install
 
 ```bash
-cd client
-npm install
-npm run build      # builds the frontend into client/dist
-
-cd ../server
-npm install
-cp .env.example .env
+git clone https://github.com/eloooong/spoti.git
+cd spoti
+npm ci --prefix server
+npm ci --prefix client
 ```
 
-Now open `.env` in a text editor and paste in your real values:
+### 2. Configure your Spotify app
 
+Open the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard), select your app, and register this redirect URI:
+
+```text
+http://127.0.0.1:8888/callback
 ```
-SPOTIFY_CLIENT_ID=paste_your_client_id_here
-SPOTIFY_CLIENT_SECRET=paste_your_client_secret_here
+
+Use the exact same value in your environment file. Spotify accepts HTTP for explicit loopback addresses such as `127.0.0.1`; see the [redirect URI requirements](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri).
+
+### 3. Create the environment file
+
+Copy [`server/.env.example`](server/.env.example) to `server/.env`:
+
+```bash
+cp server/.env.example server/.env
+```
+
+On PowerShell, use `Copy-Item server/.env.example server/.env` instead. Set your credentials:
+
+```dotenv
+SPOTIFY_CLIENT_ID=your_client_id
+SPOTIFY_CLIENT_SECRET=your_client_secret
 SPOTIFY_REDIRECT_URI=http://127.0.0.1:8888/callback
-STATE_SECRET=any_random_string_you_want
-GROQ_API_KEY=only_needed_for_the_AI_features
 PORT=8888
 ```
 
-Start the server:
+`server/.env` is excluded from Git. Keep credentials on the server.
+
+### 4. Build and run
 
 ```bash
-npm start
+npm run build --prefix client
+npm start --prefix server
 ```
 
-Open your browser to **http://127.0.0.1:8888**, click **Connect Spotify**,
-log in, and you should land back on your dashboard with your stats.
+Open [http://127.0.0.1:8888](http://127.0.0.1:8888) and select **Connect Spotify**. Express serves the compiled frontend and handles authentication and API requests.
 
-> The AI features (Taste Profile, Recap, Chat) only appear if
-> `GROQ_API_KEY` is set — get a free key at https://console.groq.com.
+## Development
 
-### Development mode (hot reload)
-
-While working on the frontend, run both processes:
+Run the backend and Vite in separate terminals, from the repository root:
 
 ```bash
-# terminal 1 — backend on :8888
-cd server && npm start
-
-# terminal 2 — Vite dev server on :5173, with hot reload
-cd client && npm run dev
+# Terminal 1
+npm start --prefix server
 ```
 
-Then open **http://localhost:5173**. The dev server proxies `/api`,
-`/login`, `/callback`, and `/logout` to the backend automatically.
+```bash
+# Terminal 2
+npm run dev --prefix client -- --host 127.0.0.1
+```
 
-> If you see "Nothing's spinning" and empty lists, that's normal if you
-> haven't played anything on Spotify recently, or if it's a brand-new
-> account with little history yet.
+Use [http://127.0.0.1:5173](http://127.0.0.1:5173) for hot reload. Vite proxies `/api`, `/login`, `/callback`, and `/logout` to the backend. OAuth returns to port `8888`; after signing in, return to port `5173` to continue development. Use `127.0.0.1` consistently so both ports share the session cookie.
 
-### Running locally over HTTPS (fixes Spotify login in Brave)
+```bash
+# Type-check and build
+npm run build --prefix client
 
-Some browsers — Brave in particular — are stricter about `http://127.0.0.1`
-redirect URIs than Spotify itself is, and can show a `redirect_uri: Unsafe`
-error even though the app and Spotify dashboard are both configured
-correctly. Your deployed Render site doesn't hit this because it already
-runs over `https://`. To make your local copy behave the same way:
+# Lint the frontend
+npm run lint --prefix client
+```
 
-1. **Install [mkcert](https://github.com/FiloSottile/mkcert)** (a tool that
-   creates locally-trusted HTTPS certificates — no real domain needed):
-   - **Windows**: `choco install mkcert` (via [Chocolatey](https://chocolatey.org)),
-     or download the `.exe` directly from mkcert's
-     [releases page](https://github.com/FiloSottile/mkcert/releases)
-   - **Mac**: `brew install mkcert`
-   - **Linux**: see mkcert's README for your distro
+## Configuration
 
-2. **Install the local trust certificate once** (creates a certificate
-   authority your browser will trust):
-   ```bash
-   mkcert -install
-   ```
+The server loads `server/.env` when started with the commands above.
 
-3. **Generate a certificate for 127.0.0.1**, run from inside your `server`
-   folder:
-   ```bash
-   cd server
-   mkdir certs
-   cd certs
-   mkcert 127.0.0.1
-   cd ..
-   ```
-   This creates `server/certs/127.0.0.1.pem` and
-   `server/certs/127.0.0.1-key.pem`. The server automatically detects and
-   uses these — no code changes needed.
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `SPOTIFY_CLIENT_ID` | Yes | Client ID from your Spotify developer app. |
+| `SPOTIFY_CLIENT_SECRET` | Yes | Client Secret used by the server to exchange and refresh tokens. |
+| `SPOTIFY_REDIRECT_URI` | Yes | Callback URL; must exactly match a registered redirect URI. |
+| `PORT` | No | Backend port. Defaults to `8888`. |
+| `GROQ_API_KEY` | No | Enables the AI profile, recap, and chat. Leave blank to keep them hidden. |
+| `GROQ_MODEL` | No | Overrides the model used for Groq chat completions. |
+| `DATABASE_URL` | No | PostgreSQL connection string for persistent sessions. |
+| `ALLOWED_ORIGIN` | No | Allowed browser origin for CORS. Set this to your deployed site's origin. |
 
-4. **Update your `.env`** so the redirect URI uses `https`:
-   ```
-   SPOTIFY_REDIRECT_URI=https://127.0.0.1:8888/callback
-   ```
+### Sessions and AI
 
-5. **Add the same URL to your Spotify dashboard** → your app → Settings →
-   Redirect URIs (you can keep the old `http://` one too, it doesn't hurt):
-   ```
-   https://127.0.0.1:8888/callback
-   ```
+Each visitor receives a separate session cookie. Spotify access and refresh tokens remain on the backend. In-memory sessions are cleared when the server restarts. With PostgreSQL configured, sessions persist and the server creates its sessions table during startup.
 
-6. **Restart the server** (`npm start`). The startup log will now say
-   `https://127.0.0.1:8888` instead of `http://`.
+AI features are optional. When enabled, listening summaries and chat messages are sent to Groq to generate responses. Profiles and recaps are cached in process memory for up to 24 hours; chat context is cached for up to one hour.
 
-7. Visit `https://127.0.0.1:8888` in your browser. Since this is a
-   locally-generated certificate, the first visit may still show a security
-   warning in some browsers — that's expected and safe to proceed past
-   (mkcert's certificate is trusted by your system, but some browsers show
-   a one-time notice regardless).
+## Deployment
 
-If you'd rather skip this, plain `http://127.0.0.1:8888` still works fine
-in Chrome, Firefox, and Edge — this is specifically a Brave quirk.
+Deploy as a **Node.js web service** that runs Express, using the repository root as the working directory.
 
-## Part 3: Deploy it so it's live on the internet
+| Setting | Value |
+| --- | --- |
+| Build command | `npm ci --prefix client && npm run build --prefix client && npm ci --prefix server` |
+| Start command | `npm start --prefix server` |
+| Required environment | `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REDIRECT_URI` |
+| Persistent sessions | Set `DATABASE_URL` to a reachable PostgreSQL instance. |
+| Browser origin | Set `ALLOWED_ORIGIN` to the site's HTTPS origin. |
 
-**Recommended: Render**, not Netlify. Here's why that matters: Netlify runs
-backends as serverless functions — stateless and isolated per request, with
-no shared memory between calls. This app stores your Spotify login token in
-a plain in-memory variable on the server, so it needs a server that stays
-running continuously. Render (and similar services like Railway) do exactly
-that — no code changes needed. Netlify would require rewriting how login
-tokens are stored (e.g. into a database), which isn't worth the complexity
-for a personal testing project.
+Register `https://your-domain.example/callback` in Spotify's settings and set `SPOTIFY_REDIRECT_URI` to that exact URL. Configure HTTPS at your host or reverse proxy. Rebuild after frontend changes; `client/dist` is generated and excluded from Git.
 
-### Steps to deploy on Render
+<details>
+<summary>Optional local HTTPS</summary>
 
-1. **Push this project to GitHub**, if it isn't already there:
-   ```bash
-   cd spotify-stats
-   git init
-   git add .
-   git commit -m "Initial commit"
-   ```
-   Then create a new repository on https://github.com/new and follow its
-   instructions to push your local commit there.
+The backend automatically enables HTTPS when `server/certs/127.0.0.1.pem` and `server/certs/127.0.0.1-key.pem` both exist. Generate a locally trusted certificate with [mkcert](https://github.com/FiloSottile/mkcert), then update both the environment variable and registered Spotify redirect to `https://127.0.0.1:8888/callback`.
 
-2. **Sign up / log in** at https://render.com (you can sign in with GitHub).
+Certificate files are excluded from Git. The Vite proxy currently targets HTTP; use the compiled frontend when running the backend with local HTTPS.
 
-3. Click **New +** (top right) → **Web Service**.
+</details>
 
-4. **Connect your GitHub repo** — Render will ask for permission to see your
-   repositories, then pick the one you just pushed.
+## Data boundaries
 
-5. Fill in the settings:
-   - **Name**: anything, e.g. `spotify-stats`
-   - **Root Directory**: leave blank (the repo root)
-   - **Runtime**: Node
-   - **Build Command**:
-     ```
-     cd client && npm install && npm run build && cd ../server && npm install
-     ```
-   - **Start Command**: `npm start --prefix server` (or set Root Directory
-     to `server` and use `npm start`, with the client built via a custom
-     build command as above)
-   - **Instance Type**: Free
+- Recent-play charts describe the **latest 50 plays**, rather than a complete listening history.
+- Top-item rankings use Spotify's time ranges rather than exact custom date intervals.
+- Genre and popularity charts depend on fields available to the app; some artists and tracks may lack them.
+- Continuous history tracking, lifetime listening minutes, and Extended Streaming History import are not currently implemented.
+- API availability and permissions depend on Spotify's platform rules. Access restrictions and expired sessions are surfaced in the dashboard.
 
-6. Scroll to **Environment Variables** and add these (same values as your
-   local `.env`, except the redirect URI — see step 7):
-   ```
-   SPOTIFY_CLIENT_ID=your_client_id
-   SPOTIFY_CLIENT_SECRET=your_client_secret
-   SPOTIFY_REDIRECT_URI=https://your-app-name.onrender.com/callback
-   STATE_SECRET=any_random_string
-   ```
-   You won't know your exact `.onrender.com` URL until after the first
-   deploy — it's fine to guess the name for now and fix it in step 8 if it's
-   different.
+## Project structure
 
-7. Click **Create Web Service**. Render will build and start your app —
-   this takes a few minutes on the first deploy. Watch the logs; you're
-   looking for a line like `Server running: http://...`.
+```text
+spoti/
+├── client/                 React frontend and Vite configuration
+│   ├── src/components/     Dashboard, charts, and Kokonut UI components
+│   ├── src/lib/            Typed API helpers and shared data state
+│   └── public/brand/       Approved Replay S logo assets
+├── server/                 Express, Spotify OAuth, sessions, and Groq endpoints
+├── public/                 Original frontend; fallback when client/dist is absent
+├── design/logo-concepts/   Logo source artwork, iterations, and review notes
+└── docs/assets/            README visuals
+```
 
-8. Once deployed, Render shows your live URL at the top of the dashboard
-   (something like `https://spotify-stats-xyz1.onrender.com`). Copy it, then:
-   - Go back to **Environment Variables** on Render and make sure
-     `SPOTIFY_REDIRECT_URI` is exactly `https://your-real-url.onrender.com/callback`
-   - Go to https://developer.spotify.com/dashboard → your app → **Settings**
-     → **Redirect URIs** → add that same URL as a new entry → **Save**
-   - Back on Render, trigger a redeploy so it picks up any environment
-     variable change (Render usually does this automatically after saving
-     env vars, but you can also click **Manual Deploy → Deploy latest commit**)
+## Credits
 
-9. Visit your `.onrender.com` URL, click **Connect Spotify**, and test it
-   the same way you did locally.
+- [Kokonut UI](https://kokonutui.com/) for the interactive interface components.
+- [Spotify Web API](https://developer.spotify.com/documentation/web-api) for listening data.
+- [Groq](https://groq.com/) for optional AI responses.
+- [Manrope](https://github.com/googlefonts/manrope) for the outlined logo lettering; [SIL Open Font License](design/logo-concepts/Manrope-OFL.txt).
 
-### Notes on Render's free tier
-- Free web services "spin down" after ~15 minutes of no traffic. The next
-  visit after that will take ~30–50 seconds to wake back up — normal, not
-  a bug.
-- Any time you push a new commit to GitHub, Render automatically redeploys.
-
-## Notes & limitations
-
-- **Multi-user support**: each visitor gets their own session (via a secure
-  cookie), tied to their own Spotify login — so multiple people can use the
-  same deployed site and each sees their own stats. Sessions are still
-  stored in the server's memory, not a database. That means: if the server
-  restarts (including Render's free tier "spinning down" after ~15 minutes
-  of no traffic), everyone's sessions are cleared and they'll need to log
-  in again. Fine for testing with a few people; a real production app with
-  many users would use a database instead.
-- **Spotify's own user limit**: since your app is in Spotify's Development
-  Mode, Spotify caps it at 5 authorized users total. Each person needs to
-  be manually added in your Spotify Developer Dashboard (your app →
-  Settings → User Management) before they can log in — otherwise Spotify
-  blocks them at the login screen, regardless of anything in this app's code.
-- Spotify's "top tracks/artists" reflects your listening over the last
-  ~4 weeks, ~6 months, or all-time — there's no way to get a live count
-  of "total minutes ever listened" from the API. For that kind of deep
-  historical stat, you'd request your full data export from Spotify's
-  privacy settings instead (a separate, static dataset).
-- Free hosting tiers (Render, Railway) may "sleep" your app after
-  inactivity — the first load after a while might take ~30 seconds to
-  wake up, and (per above) clears everyone's sessions when it does.
-
-## Ideas for extending this later
-
-- Add a light/dark mode toggle
-- Cache recently played tracks over time to build your own history
-  (Spotify only gives you the last 50 plays at any moment)
-
-## Features added: visualizations, mood, and cover art
-
-- **Cover art**: the "now playing" hero shows the album artwork, with a
-  small equalizer badge that animates while a track is actively playing.
-- **Your Sound**: a bar chart of your most common genres, built from your
-  top artists' genre tags.
-- **Your Mood**: a rough mood breakdown (Energetic, Chill, Melancholic,
-  Upbeat, etc.) inferred from those same genre tags via keyword matching
-  in `public/mood-map.js`.
-
-  **Why "inferred" and not real data**: Spotify deprecated its Audio
-  Features endpoint (which used to expose real energy/valence/danceability
-  scores per track) for all new apps in November 2024. Since this app is
-  new, it can't access that endpoint, so mood here is a genre-based
-  approximation rather than Spotify's own measurement. If you want to
-  adjust the mood categories or keywords, they're easy to edit directly in
-  `public/mood-map.js`.
-- **Popularity bars**: each track/artist in your top lists now shows a
-  thin bar reflecting Spotify's 0–100 popularity score for that item.
-
-## Not included: daily/weekly/all-time listening minutes
-
-Spotify's API has never exposed a "total minutes listened" stat, live or
-historical — it only gives "recently played" (last ~50 tracks) and top
-tracks/artists by rough time buckets. Getting real daily/weekly/all-time
-minutes would require either:
-- A custom tracker that polls what you're playing over time and logs it
-  yourself (only counts from when you start running it, no backfill), or
-- Requesting your full Extended Streaming History export from Spotify's
-  privacy settings (a static file with exact past listening data, but it
-  can take days to weeks to arrive).
-
-Let me know if you'd like either of these built later.
+SpotiStats is an independent project and is not affiliated with or endorsed by Spotify.
