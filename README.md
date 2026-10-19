@@ -18,7 +18,7 @@ SpotiStats brings your listening data into a responsive interface built with Rea
 
 ## Preview
 
-![SpotiStats sign-in screen with Replay S branding and animated Kokonut UI background](docs/assets/sign-in.png)
+![SpotiStats sign-in screen with Tasteprint S branding and animated Kokonut UI background](docs/assets/sign-in.png)
 
 *The sign-in screen. Dashboard content is loaded from your connected Spotify account.*
 
@@ -184,7 +184,7 @@ spoti/
 ├── client/                 React frontend and Vite configuration
 │   ├── src/components/     Dashboard, charts, and Kokonut UI components
 │   ├── src/lib/            Typed API helpers and shared data state
-│   └── public/brand/       Approved Replay S logo assets
+│   └── public/brand/       Approved Tasteprint S logo assets
 ├── server/                 Express, Spotify OAuth, sessions, and Groq endpoints
 ├── public/                 Original frontend; fallback when client/dist is absent
 ├── design/logo-concepts/   Logo source artwork, iterations, and review notes
