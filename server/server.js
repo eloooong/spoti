@@ -11,8 +11,9 @@
 // browser. The server maps session IDs to that person's Spotify tokens, so
 // different visitors never see each other's data. Sessions are persisted in
 // PostgreSQL (DATABASE_URL) so they survive restarts — on Render, add a
-// PostgreSQL add-on and set DATABASE_URL. Without DATABASE_URL, the server
-// runs in local-dev mode with in-memory sessions (lost on restart).
+// PostgreSQL add-on and set DATABASE_URL. Without DATABASE_URL, Vercel uses
+// encrypted HttpOnly cookies with STATE_SECRET; local development uses
+// in-memory sessions (lost on restart).
 
 require("dotenv").config();
 const express = require("express");
@@ -25,6 +26,7 @@ const fs = require("fs");
 const http = require("http");
 const https = require("https");
 const { Pool } = require("pg");
+const { sealCookie, openCookie } = require("./sealed-cookie");
 
 const app = express();
 
@@ -45,6 +47,7 @@ const {
   GROQ_API_KEY,
   GROQ_MODEL,
   PORT,
+  STATE_SECRET,
 } = process.env;
 
 // --- Database (PostgreSQL when DATABASE_URL is set) -----------------------
@@ -60,6 +63,11 @@ const pool = process.env.DATABASE_URL
   : null;
 
 const sessions = pool ? null : new Map(); // fallback for local dev
+const serverlessSessions = !!process.env.VERCEL && !pool;
+const SESSION_COOKIE = "spoti_session";
+const LOGIN_COOKIE = "spoti_login";
+const SESSION_AGE = 30 * 24 * 60 * 60 * 1000;
+const secureCookieOptions = { httpOnly: true, secure: true, sameSite: "lax", path: "/" };
 
 async function initDatabase() {
   if (!pool) return;
@@ -79,14 +87,23 @@ async function initDatabase() {
   }
 }
 
-async function getSession(sid) {
+async function getSession(sid, req) {
   if (!sid) return undefined;
+  if (serverlessSessions) {
+    const stored = openCookie(req?.cookies?.[SESSION_COOKIE], STATE_SECRET, "session");
+    return stored?.sessionId === sid ? stored.tokens : undefined;
+  }
   if (!pool) return sessions.get(sid);
   const { rows } = await pool.query("SELECT * FROM sessions WHERE sid = $1", [sid]);
   return rows[0] || undefined;
 }
 
-async function setSession(sid, tokens) {
+async function setSession(sid, tokens, res) {
+  if (serverlessSessions) {
+    const encrypted = sealCookie({ sessionId: sid, tokens }, STATE_SECRET, "session", SESSION_AGE);
+    res.cookie(SESSION_COOKIE, encrypted, { ...secureCookieOptions, maxAge: SESSION_AGE });
+    return;
+  }
   if (!pool) { sessions.set(sid, tokens); return; }
   await pool.query(
     `INSERT INTO sessions (sid, access_token, refresh_token, expires_at)
@@ -155,13 +172,13 @@ async function callGroq(messages, { system, maxTokens = 400 } = {}) {
 // Builds (or returns cached) a compact text summary of a session's stats —
 // used as context for the chat feature so the AI can answer questions
 // about the visitor's actual listening data.
-async function getStatsContext(sessionId) {
+async function getStatsContext(sessionId, req, res) {
   const cached = statsContextCache.get(sessionId);
   if (cached && Date.now() - cached.generatedAt < ONE_HOUR_MS) {
     return cached.text;
   }
 
-  const token = await ensureFreshToken(sessionId);
+  const token = await ensureFreshToken(sessionId, req, res);
   const headers = { Authorization: `Bearer ${token}` };
 
   const [artistsRes, tracksRes, recentRes] = await Promise.all([
@@ -237,7 +254,11 @@ app.get("/login", (req, res) => {
 
   const sessionId = getOrCreateSessionId(req, res);
   const state = crypto.randomUUID();
-  pendingLogins.set(state, { sessionId, createdAt: Date.now() });
+  if (process.env.VERCEL) {
+    res.cookie(LOGIN_COOKIE, sealCookie({ sessionId, state }, STATE_SECRET, "login", 10 * 60 * 1000), { ...secureCookieOptions, maxAge: 10 * 60 * 1000 });
+  } else {
+    pendingLogins.set(state, { sessionId, createdAt: Date.now() });
+  }
 
   const scope = [
     "user-top-read",
@@ -267,11 +288,12 @@ app.get("/login", (req, res) => {
 app.get("/callback", async (req, res) => {
   const { code, state } = req.query;
 
-  const pending = pendingLogins.get(state);
-  if (!pending) {
+  const pending = process.env.VERCEL ? openCookie(req.cookies?.[LOGIN_COOKIE], STATE_SECRET, "login") : pendingLogins.get(state);
+  if (!pending || (process.env.VERCEL && (pending.state !== state || pending.sessionId !== req.cookies?.sid))) {
     return res.status(403).send("Login session expired or invalid. Please try connecting again.");
   }
   pendingLogins.delete(state);
+  if (process.env.VERCEL) res.clearCookie(LOGIN_COOKIE, secureCookieOptions);
 
   try {
     const tokenResponse = await axios.post(
@@ -296,7 +318,7 @@ app.get("/callback", async (req, res) => {
       access_token,
       refresh_token,
       expires_at: Date.now() + expires_in * 1000,
-    });
+    }, res);
 
     // Make sure the session cookie is set on this response too, in case
     // this is a fresh browser that only just got its sessionId above.
@@ -315,8 +337,8 @@ app.get("/callback", async (req, res) => {
 });
 
 // --- Helper: make sure this session has a valid (non-expired) token ------
-async function ensureFreshToken(sessionId) {
-  const session = await getSession(sessionId);
+async function ensureFreshToken(sessionId, req, res) {
+  const session = await getSession(sessionId, req);
   if (!session) {
     throw new Error("NOT_LOGGED_IN");
   }
@@ -342,9 +364,9 @@ async function ensureFreshToken(sessionId) {
     const newExpiresAt = Date.now() + refreshResponse.data.expires_in * 1000;
     await setSession(sessionId, {
       access_token: refreshResponse.data.access_token,
-      refresh_token: session.refresh_token,
+      refresh_token: refreshResponse.data.refresh_token || session.refresh_token,
       expires_at: newExpiresAt,
-    });
+    }, res);
 
     return refreshResponse.data.access_token;
   }
@@ -366,7 +388,7 @@ function apiRoute(routePath, spotifyUrl) {
   app.get(routePath, async (req, res) => {
     try {
       const sessionId = req.cookies?.sid;
-      const token = await ensureFreshToken(sessionId);
+      const token = await ensureFreshToken(sessionId, req, res);
       const response = await axios.get(spotifyUrl(req), {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -423,7 +445,7 @@ app.get("/api/playlist-meta", async (req, res) => {
 
   try {
     const sessionId = req.cookies?.sid;
-    const token = await ensureFreshToken(sessionId);
+    const token = await ensureFreshToken(sessionId, req, res);
     const response = await axios.get(
       `https://api.spotify.com/v1/playlists/${encodeURIComponent(id)}?fields=name,images,external_urls`,
       { headers: { Authorization: `Bearer ${token}` } }
@@ -446,7 +468,7 @@ app.get("/api/playlist-meta", async (req, res) => {
 app.get("/api/library-snapshot", async (req, res) => {
   try {
     const sessionId = req.cookies?.sid;
-    const token = await ensureFreshToken(sessionId);
+    const token = await ensureFreshToken(sessionId, req, res);
     const headers = { Authorization: `Bearer ${token}` };
 
     const [followedArtists, savedTracks, savedAlbums, playlists] = await Promise.all([
@@ -496,7 +518,7 @@ app.get("/api/ai-taste-profile", async (req, res) => {
       }
     }
 
-    const token = await ensureFreshToken(sessionId);
+    const token = await ensureFreshToken(sessionId, req, res);
     const headers = { Authorization: `Bearer ${token}` };
 
     const [artistsRes, tracksRes] = await Promise.all([
@@ -572,7 +594,7 @@ app.get("/api/ai-recap", async (req, res) => {
       }
     }
 
-    const token = await ensureFreshToken(sessionId);
+    const token = await ensureFreshToken(sessionId, req, res);
     const headers = { Authorization: `Bearer ${token}` };
     const recentRes = await axios.get(
       "https://api.spotify.com/v1/me/player/recently-played?limit=50",
@@ -673,7 +695,7 @@ app.post("/api/ai-chat", async (req, res) => {
     : [];
 
   try {
-    const statsContext = await getStatsContext(sessionId);
+    const statsContext = await getStatsContext(sessionId, req, res);
 
     const systemPrompt = `You are a friendly assistant embedded in SpotiStats, a personal
 Spotify listening-stats dashboard. Answer the visitor's questions about
@@ -704,7 +726,7 @@ ask for a list). No markdown headers — plain prose or simple lists only.`;
 // Lets the frontend check login status without triggering a redirect.
 app.get("/api/status", async (req, res) => {
   const sessionId = req.cookies?.sid;
-  const session = sessionId ? await getSession(sessionId) : undefined;
+  const session = sessionId ? await getSession(sessionId, req) : undefined;
   res.json({ logged_in: !!session });
 });
 
@@ -718,6 +740,10 @@ app.get("/logout", async (req, res) => {
     statsContextCache.delete(sessionId);
   }
   res.clearCookie("sid");
+  if (process.env.VERCEL) {
+    res.clearCookie(SESSION_COOKIE, secureCookieOptions);
+    res.clearCookie(LOGIN_COOKIE, secureCookieOptions);
+  }
   res.redirect("/");
 });
 
@@ -744,12 +770,15 @@ const certPath = path.join(__dirname, "certs", "127.0.0.1.pem");
 const keyPath = path.join(__dirname, "certs", "127.0.0.1-key.pem");
 const hasLocalCert = fs.existsSync(certPath) && fs.existsSync(keyPath);
 
-if (hasLocalCert) {
+app.ready = initDatabase();
+module.exports = app;
+
+if (require.main === module && hasLocalCert) {
   const server = https.createServer(
     { cert: fs.readFileSync(certPath), key: fs.readFileSync(keyPath) },
     app
   );
-  initDatabase()
+  app.ready
     .then(() => {
       server.listen(port, () => {
         console.log(`Server running: https://127.0.0.1:${port}`);
@@ -762,8 +791,8 @@ if (hasLocalCert) {
         console.log(`Server running: https://127.0.0.1:${port} (no database)`);
       });
     });
-} else {
-  initDatabase()
+} else if (require.main === module) {
+  app.ready
     .then(() => {
       http.createServer(app).listen(port, () => {
         console.log(`Server running: http://127.0.0.1:${port}`);
@@ -779,7 +808,7 @@ if (hasLocalCert) {
 }
 
 // Graceful shutdown — close the database pool so Render can drain cleanly.
-process.on("SIGTERM", async () => {
+if (require.main === module) process.on("SIGTERM", async () => {
   console.log("SIGTERM received — shutting down…");
   if (pool) await pool.end();
   process.exit(0);

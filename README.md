@@ -142,11 +142,19 @@ The server loads `server/.env` when started with the commands above.
 
 ### Sessions and AI
 
-Each visitor receives a separate session cookie. Spotify access and refresh tokens remain on the backend. In-memory sessions are cleared when the server restarts. With PostgreSQL configured, sessions persist and the server creates its sessions table during startup.
+Each visitor receives a separate session cookie. With PostgreSQL configured, Spotify access and refresh tokens are stored on the backend and the server creates its sessions table during startup. Local development without a database uses in-memory sessions, which are cleared on restart. On Vercel without PostgreSQL, tokens are stored in an encrypted, authenticated, Secure, HttpOnly cookie using `STATE_SECRET`, so independent function instances can read the session. Logging out clears that browser’s cookies; use PostgreSQL when server-side session revocation is required.
 
 AI features are optional. When enabled, listening summaries and chat messages are sent to Groq to generate responses. Profiles and recaps are cached in process memory for up to 24 hours; chat context is cached for up to one hour.
 
 ## Deployment
+
+### Vercel
+
+The production project uses the repository root. `vercel.json` builds `client/dist` and routes `/api/*`, `/login`, `/callback`, and `/logout` to `api/index.js`, which runs Express without opening a port.
+
+Set `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, and `SPOTIFY_REDIRECT_URI` in Vercel’s production environment. Register the production `/callback` URL in Spotify’s dashboard. Set a long random `STATE_SECRET` for encrypted OAuth state and, when no database is configured, encrypted session cookies. Existing `DATABASE_URL` storage is supported. Optional AI variables work as described above.
+
+### Node.js service
 
 Deploy as a **Node.js web service** that runs Express, using the repository root as the working directory.
 

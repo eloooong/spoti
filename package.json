@@ -1,0 +1,7 @@
+{
+  "name": "spotistats",
+  "private": true,
+  "type": "commonjs",
+  "engines": { "node": "22.x" },
+  "scripts": { "build": "npm run build --prefix client" }
+}
