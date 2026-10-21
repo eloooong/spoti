@@ -28,7 +28,7 @@ SpotiStats brings your listening data into a responsive interface built with Rea
 | --- | --- |
 | **Favorites** | Top artists and tracks across Spotify's short-term, medium-term, and long-term ranges. |
 | **Listening patterns** | A weekly heatmap, daily favorites, and playlist activity based on your latest 50 plays. |
-| **Your sound** | Genre distribution and an obscurity score derived from available Spotify popularity data. |
+| **Your sound** | Bubbles for genre counts (or artist mix when tags are unavailable), plus a donut chart of your top tracks’ album release decades. |
 | **Current playback** | Album artwork, track details, playback progress, and device name, refreshed every 15 seconds. |
 | **Library** | Counts of followed artists, liked songs, saved albums, and playlists, plus a playlist carousel. |
 | **Optional AI insights** | A taste profile, recent-listening recap, and chat about your stats, powered by Groq. |
@@ -174,7 +174,7 @@ Certificate files are excluded from Git. The Vite proxy currently targets HTTP; 
 - Recent-play charts describe the **latest 50 plays**, rather than a complete listening history.
 - Top-item rankings use Spotify's time ranges rather than exact custom date intervals.
 - Your Sound uses artist genre tags when Spotify provides them. If those tags are missing, it shows artist appearances across your top tracks, with each collaboration counted once per credited artist. This is an artist mix, not a play-count or inferred-genre chart.
-- Popularity charts depend on fields available to the app; some artists and tracks may lack them.
+- Your Music Eras groups top tracks by the album release year supplied by Spotify. Reissues may use a newer album edition’s date rather than the original song’s year. Missing or invalid dates are excluded and coverage is shown; decade counts describe top tracks, not play counts.
 - Continuous history tracking, lifetime listening minutes, and Extended Streaming History import are not currently implemented.
 - API availability and permissions depend on Spotify's platform rules. Access restrictions and expired sessions are surfaced in the dashboard.
 

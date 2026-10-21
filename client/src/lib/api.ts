@@ -19,7 +19,7 @@ export interface Track {
   id: string;
   name: string;
   artists: Artist[];
-  album?: { name?: string; images?: Image[] };
+  album?: { name?: string; images?: Image[]; release_date?: string };
   duration_ms?: number;
   popularity?: number;
 }

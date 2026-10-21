@@ -14,7 +14,7 @@ import { DataUnavailableContext } from "@/lib/data-state";
 const ListeningHeatmap = lazy(() => import("./components/Charts").then((m) => ({ default: m.ListeningHeatmap })));
 const DailyTop = lazy(() => import("./components/Charts").then((m) => ({ default: m.DailyTop })));
 const YourSound = lazy(() => import("./components/Charts").then((m) => ({ default: m.YourSound })));
-const ObscurityPanel = lazy(() => import("./components/Charts").then((m) => ({ default: m.ObscurityPanel })));
+const MusicErasPanel = lazy(() => import("./components/Charts").then((m) => ({ default: m.MusicErasPanel })));
 
 function Dashboard() {
   const reducedMotion = useReducedMotion();
@@ -72,7 +72,7 @@ function Dashboard() {
           <div className="grid gap-5 md:grid-cols-2"><TopArtistsPanel artists={artists} /><TopTracksPanel tracks={tracks} /></div>
           <div className="mt-5 grid gap-5 md:grid-cols-2">
             <Suspense fallback={<ChartPanelSkeleton title="Your Sound" />}><YourSound artists={artists} tracks={tracks} /></Suspense>
-            <Suspense fallback={<ChartPanelSkeleton title="Obscurity Score" />}><ObscurityPanel artists={artists} tracks={tracks} /></Suspense>
+            <Suspense fallback={<ChartPanelSkeleton title="Your Music Eras" />}><MusicErasPanel tracks={tracks} /></Suspense>
           </div>
         </section>
 

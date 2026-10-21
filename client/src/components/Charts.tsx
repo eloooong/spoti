@@ -1,10 +1,13 @@
 import { useState } from "react";
+import { useReducedMotion } from "motion/react";
 import { Clock, Disc3 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts";
 import type { Artist, RecentlyPlayedEntry, Track } from "@/lib/api";
 import { ChartEmpty, Panel, SkeletonLines } from "@/components/Panel";
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
-import { buildSoundBreakdown, type SoundRow } from "@/lib/your-sound";
+import { buildSoundBreakdown } from "@/lib/your-sound";
+import { buildMusicEras } from "@/lib/music-eras";
+import { MusicErasDonut, SoundBubbles } from "@/components/TasteCharts";
 
 const GREEN = "#1db954";
 const BRIGHT_GREEN = "#1ed760";
@@ -167,6 +170,7 @@ const dailyTopConfig = {
 } satisfies ChartConfig;
 
 interface DayRow {
+  timestamp: number;
   label: string;
   artistName: string;
   trackName: string;
@@ -175,6 +179,7 @@ interface DayRow {
 }
 
 export function DailyTop({ items }: ClockRoutineProps) {
+  const reducedMotion = useReducedMotion();
   const empty = items !== null && items.length === 0;
   let data: DayRow[] = [];
 
@@ -225,6 +230,7 @@ export function DailyTop({ items }: ClockRoutineProps) {
         const topArtist = Object.values(day.artists).sort((a, b) => b.count - a.count)[0];
         const topTrack = Object.values(day.tracks).sort((a, b) => b.count - a.count)[0];
         return {
+          timestamp: day.dateObj.getTime(),
           label: formatDayLabel(day.dateObj),
           artistName: topArtist?.name ?? "",
           trackName: topTrack?.name ?? "",
@@ -238,7 +244,7 @@ export function DailyTop({ items }: ClockRoutineProps) {
   return (
     <Panel
      
-      note="Most-played artist & track each day, from your last ~50 plays — hover a bar for details"
+      note="Daily counts for each day’s most-played artist and track, from your latest ~50 plays — select a point for details"
       title="Daily Top"
     >
       {items === null ? (
@@ -249,23 +255,30 @@ export function DailyTop({ items }: ClockRoutineProps) {
         <ChartEmpty icon={Clock}>Not enough recent plays yet to build a daily breakdown.</ChartEmpty>
       ) : (
         <ChartContainer className="aspect-auto h-72 w-full" config={dailyTopConfig}>
-          <BarChart data={data} margin={{ left: -20, right: 12 }}>
+          <LineChart data={data} margin={{ left: -20, right: 12 }}>
+            <Legend iconType="plainline" verticalAlign="top" height={32} wrapperStyle={{ fontSize: 12 }} />
             <CartesianGrid stroke={GRID_LINE} vertical={false} />
             <XAxis
               axisLine={false}
-              dataKey="label"
+              dataKey="timestamp"
+              type="number"
+              scale="time"
+              domain={["dataMin", "dataMax"]}
+              ticks={data.map(row => row.timestamp)}
+              tickFormatter={(value) => formatDayLabel(new Date(value))}
+              minTickGap={24}
               tick={{ fill: DIM }}
               tickLine={false}
               tickMargin={8}
             />
             <YAxis allowDecimals={false} axisLine={false} tick={{ fill: DIM }} tickLine={false} />
             <ChartTooltip
-              content={({ active, payload, label }) => {
+              content={({ active, payload }) => {
                 if (!(active && payload?.length)) return null;
                 const row = payload[0].payload as DayRow;
                 return (
                   <div className="max-w-56 rounded-lg border border-white/10 bg-popover p-3 text-xs shadow-xl">
-                    <div className="mb-1.5 font-semibold">{label}</div>
+                    <div className="mb-1.5 font-semibold">{row.label}</div>
                     <div className="flex items-center gap-2">
                       <span className="size-2 shrink-0 rounded-full" style={{ background: GREEN }} />
                       <span className="truncate">
@@ -286,11 +299,11 @@ export function DailyTop({ items }: ClockRoutineProps) {
                   </div>
                 );
               }}
-              cursor={{ fill: "rgba(255,255,255,0.05)" }}
+              cursor={{ stroke: DIM, strokeDasharray: "3 3" }}
             />
-            <Bar barSize={12} dataKey="artistCount" fill="var(--color-artistCount)" radius={4} />
-            <Bar barSize={12} dataKey="trackCount" fill="var(--color-trackCount)" radius={4} />
-          </BarChart>
+            <Line type="linear" dataKey="artistCount" name="Top artist" stroke="var(--color-artistCount)" strokeWidth={2} dot={{ r: 4, fill: GREEN, strokeWidth: 0 }} activeDot={{ r: 6 }} isAnimationActive={!reducedMotion} animationDuration={450} />
+            <Line type="linear" dataKey="trackCount" name="Top track" stroke="var(--color-trackCount)" strokeWidth={2} strokeDasharray="5 4" dot={{ r: 3, fill: "var(--card)", strokeWidth: 2 }} activeDot={{ r: 5 }} isAnimationActive={!reducedMotion} animationDuration={450} />
+          </LineChart>
         </ChartContainer>
       )}
     </Panel>
@@ -303,8 +316,6 @@ export function DailyTop({ items }: ClockRoutineProps) {
 export function YourSound({ artists, tracks }: { artists: Artist[] | null; tracks: Track[] | null }) {
   const breakdown = buildSoundBreakdown(artists, tracks);
   const artistMix = breakdown?.source === "artists";
-  const measure = artistMix ? "Top tracks" : "Artists";
-  const config = { count: { color: GREEN, label: measure } } satisfies ChartConfig;
 
   return (
     <Panel
@@ -322,191 +333,50 @@ export function YourSound({ artists, tracks }: { artists: Artist[] | null; track
       ) : (
         <>
         <p className="mb-3 text-xs leading-relaxed text-muted-foreground">{artistMix ? "Genre tags weren’t returned by Spotify. Showing your artist mix instead." : `Genre tags available for ${breakdown.taggedArtists} of ${breakdown.totalArtists} top artists.`}</p>
-        <ChartContainer className="aspect-auto h-72 w-full" config={config}>
-          <BarChart data={breakdown.rows} layout="vertical" margin={{ left: 8, right: 12 }}>
-            <CartesianGrid stroke={GRID_LINE} horizontal={false} />
-            <XAxis allowDecimals={false} tick={{ fill: DIM }} tickLine={false} type="number" />
-            <YAxis
-              axisLine={false}
-              dataKey="label"
-              tick={{ fill: DIM }}
-              tickLine={false}
-              type="category"
-              width={110}
-            />
-            <ChartTooltip
-              content={({ active, payload }) => {
-                if (!(active && payload?.length)) return null;
-                const row = payload[0].payload as SoundRow;
-                return (
-                  <div className="max-w-56 rounded-lg border border-white/10 bg-popover p-3 text-xs shadow-xl">
-                    <div className="mb-1 font-semibold">{row.label}</div>
-                    <div className="flex items-center gap-2">
-                      <span className="size-2 shrink-0 rounded-full" style={{ background: GREEN }} />
-                      <span className="text-muted-foreground">{measure}</span>
-                      <span className="ml-auto font-medium">{row.count}×</span>
-                    </div>
-                  </div>
-                );
-              }}
-              cursor={{ fill: "rgba(255,255,255,0.05)" }}
-            />
-            <Bar barSize={14} dataKey="count" fill="var(--color-count)" radius={4} />
-          </BarChart>
-        </ChartContainer>
+        <SoundBubbles rows={breakdown.rows} unit={artistMix ? "top track" : "artist"} />
         </>
       )}
     </Panel>
   );
 }
 
-// ─── Obscurity Score ──────────────────────────────────────────────────────────
-// Average Spotify 0–100 popularity across your top artists + tracks,
-// inverted so higher = more niche. Histogram shows where your taste
-// clusters; extremes call out your deepest cut and biggest crowd-pleaser.
-
-const obscurityConfig = {
-  artists: { color: GREEN, label: "Artists" },
-  tracks: { color: BRIGHT_GREEN, label: "Tracks" },
-} satisfies ChartConfig;
-
-const OBSCURITY_BUCKETS = ["0–20", "21–40", "41–60", "61–80", "81–100"];
-
-interface ObscurityBucket {
-  bucket: string;
-  artists: number;
-  tracks: number;
-}
-
-function obscurityLabel(score: number): string {
-  if (score >= 81) return "Deep-Cut Diver";
-  if (score >= 61) return "Explorer";
-  if (score >= 41) return "Balanced";
-  if (score >= 21) return "Crowd Pleaser";
-  return "Mainstream";
-}
-
-export function ObscurityPanel({
-  artists,
-  tracks,
-}: {
-  artists: Artist[] | null;
-  tracks: Track[] | null;
-}) {
-  const loading = artists === null || tracks === null;
-
-  let score: number | null = null;
-  let buckets: ObscurityBucket[] | null = null;
-  let mostObscure: string | null = null;
-  let mostMainstream: string | null = null;
-
-  if (!loading) {
-    const artistPops = (artists ?? []).filter(
-      (a): a is Artist & { popularity: number } => typeof a.popularity === "number"
-    );
-    const trackPops = (tracks ?? []).filter(
-      (t): t is Track & { popularity: number } => typeof t.popularity === "number"
-    );
-    const all = [...artistPops.map((a) => a.popularity), ...trackPops.map((t) => t.popularity)];
-
-    if (all.length > 0) {
-      const avg = all.reduce((sum, p) => sum + p, 0) / all.length;
-      score = Math.round(100 - avg);
-
-      const bucketCounts = (pops: number[]): number[] => {
-        const counts = [0, 0, 0, 0, 0];
-        pops.forEach((p) => {
-          const idx = p <= 20 ? 0 : p <= 40 ? 1 : p <= 60 ? 2 : p <= 80 ? 3 : 4;
-          counts[idx] += 1;
-        });
-        return counts;
-      };
-      const artistBuckets = bucketCounts(artistPops.map((a) => a.popularity));
-      const trackBuckets = bucketCounts(trackPops.map((t) => t.popularity));
-      buckets = OBSCURITY_BUCKETS.map((bucket, i) => ({
-        bucket,
-        artists: artistBuckets[i],
-        tracks: trackBuckets[i],
-      }));
-
-      const named = [
-        ...artistPops.map((a) => ({ name: a.name, pop: a.popularity })),
-        ...trackPops.map((t) => ({ name: t.name, pop: t.popularity })),
-      ].sort((a, b) => a.pop - b.pop);
-      mostObscure = named[0] ? `${named[0].name} (${named[0].pop})` : null;
-      const top = named[named.length - 1];
-      mostMainstream = top ? `${top.name} (${top.pop})` : null;
-    }
-  }
+// ─── Your Music Eras ──────────────────────────────────────────────────────────
+// Album release decades across the selected top tracks, not listening dates
+// or a claim about the original recording year of a reissued track.
+export function MusicErasPanel({ tracks }: { tracks: Track[] | null }) {
+  const summary = buildMusicEras(tracks);
 
   return (
     <Panel
-      note="From Spotify's 0–100 popularity scores across your top artists & tracks in this range — higher means more niche"
-      title="Obscurity Score"
+      note="Your top tracks grouped by album release decade — switch the time range above to compare"
+      title="Your Music Eras"
     >
-      {loading ? (
+      {summary === null ? (
         <div className="h-72 pt-6">
           <SkeletonLines rows={6} />
         </div>
-      ) : score === null || !buckets ? (
+      ) : summary.eras.length === 0 ? (
         <ChartEmpty icon={Disc3}>
-          Not enough popularity data yet for this range.
+          {summary.totalTracks === 0 ? "No top tracks were returned for this time range. Try another range." : "Spotify didn’t return usable album release dates for these tracks. Try another time range."}
         </ChartEmpty>
       ) : (
         <>
-          <div className="flex items-baseline gap-3">
-            <span className="font-display text-4xl font-extrabold text-white">{score}</span>
-            <span className="text-sm font-medium text-primary">{obscurityLabel(score)}</span>
-          </div>
-          <ChartContainer className="aspect-auto h-60 w-full" config={obscurityConfig}>
-            <BarChart data={buckets} margin={{ left: -20, right: 12 }}>
-              <CartesianGrid stroke={GRID_LINE} vertical={false} />
-              <XAxis
-                axisLine={false}
-                dataKey="bucket"
-                tick={{ fill: DIM }}
-                tickLine={false}
-                tickMargin={8}
-              />
-              <YAxis allowDecimals={false} axisLine={false} tick={{ fill: DIM }} tickLine={false} />
-              <ChartTooltip
-                content={({ active, payload, label }) => {
-                  if (!(active && payload?.length)) return null;
-                  return (
-                    <div className="max-w-56 rounded-lg border border-white/10 bg-popover p-3 text-xs shadow-xl">
-                      <div className="mb-1.5 font-semibold">Popularity {label}</div>
-                      <div className="flex items-center gap-2">
-                        <span className="size-2 shrink-0 rounded-full" style={{ background: GREEN }} />
-                        <span className="text-muted-foreground">Artists</span>
-                        <span className="ml-auto font-medium">
-                          {(payload.find((p) => p.dataKey === "artists")?.value as number) ?? 0}×
-                        </span>
-                      </div>
-                      <div className="mt-1 flex items-center gap-2">
-                        <span
-                          className="size-2 shrink-0 rounded-full"
-                          style={{ background: BRIGHT_GREEN }}
-                        />
-                        <span className="text-muted-foreground">Tracks</span>
-                        <span className="ml-auto font-medium">
-                          {(payload.find((p) => p.dataKey === "tracks")?.value as number) ?? 0}×
-                        </span>
-                      </div>
-                    </div>
-                  );
-                }}
-                cursor={{ fill: "rgba(255,255,255,0.05)" }}
-              />
-              <Bar barSize={12} dataKey="artists" fill="var(--color-artists)" radius={4} />
-              <Bar barSize={12} dataKey="tracks" fill="var(--color-tracks)" radius={4} />
-            </BarChart>
-          </ChartContainer>
-          {mostObscure && mostMainstream && (
-            <p className="mt-2 truncate font-mono text-xs text-muted-foreground">
-              Deepest cut: <span className="text-white/70">{mostObscure}</span>
-              {" · "}Biggest crowd-pleaser: <span className="text-white/70">{mostMainstream}</span>
-            </p>
+          <p className="text-sm leading-relaxed"><span className="font-semibold text-primary">{summary.leadingDecades.join(" / ")}</span>{summary.leadingDecades.length === 1 ? " leads your mix." : " are tied for the most tracks."}</p>
+          <MusicErasDonut eras={summary.eras} total={summary.datedTracks} />
+          {summary.oldest && summary.newest && (
+            <dl className="mt-4 grid grid-cols-2 gap-5 border-t border-white/10 pt-4">
+              {[{ label: "Oldest release", item: summary.oldest }, { label: "Newest release", item: summary.newest }].map(({ label, item }) => (
+                <div className="min-w-0" key={label}>
+                  <dt className="text-xs text-muted-foreground">{label}</dt>
+                  <dd className="mt-1">
+                    <span className="font-display text-lg font-semibold tabular-nums">{item.year}</span>
+                    <a className="mt-1 block break-words text-xs leading-relaxed text-muted-foreground hover:text-white hover:underline" href={`https://open.spotify.com/track/${encodeURIComponent(item.track.id)}`} target="_blank" rel="noreferrer">{item.track.name}</a>
+                  </dd>
+                </div>
+              ))}
+            </dl>
           )}
+          <p className="mt-4 text-xs leading-relaxed text-muted-foreground">{summary.datedTracks} of {summary.totalTracks} top tracks have usable dates. Album release dates can reflect reissues.</p>
         </>
       )}
     </Panel>
