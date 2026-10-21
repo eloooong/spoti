@@ -1,14 +1,13 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { MotionConfig, useReducedMotion } from "motion/react";
-import { ArrowUpRight, Check, CircleAlert, Headphones, LogOut, RefreshCw } from "lucide-react";
+import { ArrowUpRight, CircleAlert, LogOut, RefreshCw } from "lucide-react";
 import { api, onApiError, type ApiFailure, type Artist, type RecentlyPlayedEntry, type TimeRange, type Track } from "@/lib/api";
 import { Hero } from "@/components/Hero";
 import { RangeTabs, TopArtistsPanel, TopTracksPanel } from "@/components/TopLists";
 import { LibrarySnapshotPanel, MostPlayedPlaylistsPanel, YourPlaylistsPanel } from "@/components/LibraryAndPlaylists";
 import { AiChatPanel, AiProfilePanel, AiRecapPanel, useAiVisibility } from "@/components/AiSections";
-import BackgroundPaths from "@/components/kokonutui/background-paths";
 import MouseGridBackground from "@/components/kokonutui/mouse-grid-background";
-import AttractButton from "@/components/kokonutui/attract-button";
+import { LoginView } from "@/components/LoginView";
 import { ChartPanelSkeleton } from "@/components/Panel";
 import { DataUnavailableContext } from "@/lib/data-state";
 
@@ -16,23 +15,6 @@ const ListeningHeatmap = lazy(() => import("./components/Charts").then((m) => ({
 const DailyTop = lazy(() => import("./components/Charts").then((m) => ({ default: m.DailyTop })));
 const YourSound = lazy(() => import("./components/Charts").then((m) => ({ default: m.YourSound })));
 const ObscurityPanel = lazy(() => import("./components/Charts").then((m) => ({ default: m.ObscurityPanel })));
-
-function LoginView() {
-  return (
-    <main id="main-content" className="login-view relative mx-auto flex min-h-[78vh] max-w-6xl items-center overflow-hidden px-6 py-20 sm:px-10">
-      <BackgroundPaths className="pointer-events-none opacity-70" />
-      <div className="relative z-10 mx-auto max-w-2xl text-center">
-        <Headphones className="mx-auto mb-8 size-12 text-primary" strokeWidth={1.3} aria-hidden="true" />
-        <h1 className="font-display text-[clamp(2.75rem,7vw,4.5rem)] font-bold leading-[1.08] tracking-[-0.035em] text-balance">Your listening,<br />laid out.</h1>
-        <p className="mx-auto mt-6 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">Connect your Spotify account to see your top tracks, top artists, and recent plays.</p>
-        <div className="mt-9 flex justify-center"><AttractButton className="min-h-[50px] rounded-full px-7 text-sm" onClick={() => { window.location.href = "/login"; }} type="button"><span className="inline-flex items-center gap-2">Connect Spotify <ArrowUpRight className="size-4" aria-hidden="true" /></span></AttractButton></div>
-        <div className="mt-10 flex flex-wrap justify-center gap-x-6 gap-y-3 text-xs text-muted-foreground">
-          {["Top artists & tracks", "Listening patterns", "Your library"].map((item) => <span className="flex items-center gap-2" key={item}><Check className="size-3.5 text-primary" aria-hidden="true" />{item}</span>)}
-        </div>
-      </div>
-    </main>
-  );
-}
 
 function Dashboard() {
   const reducedMotion = useReducedMotion();
@@ -124,13 +106,13 @@ export default function App() {
   return (
     <MotionConfig reducedMotion="user">
       <a className="skip-link" href="#main-content">Skip to content</a>
-      <header className="site-header sticky top-0 z-50 border-b border-white/[0.08]">
+      {loggedIn && <header className="site-header sticky top-0 z-50 border-b border-white/[0.08]">
         <div className="mx-auto flex min-h-20 max-w-6xl items-center justify-between gap-5 px-5 sm:px-8">
           <a className="flex shrink-0 items-center gap-2.5" href="/" aria-label="SpotiStats home"><img src="/brand/spotistats-logo.svg" alt="SpotiStats" width={907} height={256} className="h-11 w-auto" /><span className="ml-1 hidden border-l border-white/15 pl-4 text-xs text-muted-foreground xl:inline">Your music, closer.</span></a>
           {loggedIn && <nav className="hidden items-center gap-7 text-sm text-muted-foreground md:flex" aria-label="Dashboard sections"><a className="nav-link" href="#favorites">Favorites</a><a className="nav-link" href="#listening">Listening</a><a className="nav-link" href="#library">Library</a></nav>}
           {loggedIn && <div className="flex items-center gap-4"><span className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex"><span className="size-1.5 rounded-full bg-primary" />Spotify connected</span><a className="flex min-h-11 items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-white" href="/logout"><LogOut className="size-3.5" aria-hidden="true" /><span>Log out</span></a></div>}
         </div>
-      </header>
+      </header>}
       {loggedIn === null ? <main id="main-content" className="mx-auto max-w-6xl px-5 py-16" role="status"><div className="skeleton h-10 w-64 rounded bg-white/10" /><p className="mt-4 text-sm text-muted-foreground">Connecting to your dashboard…</p></main> : loggedIn ? <Dashboard /> : <LoginView />}
       <footer className="relative z-10 mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 border-t border-white/[0.08] px-5 py-7 text-xs text-muted-foreground sm:px-8"><span className="flex items-center gap-2"><img src="/brand/spotistats-symbol.svg" alt="" width={20} height={20} />Made for the way you listen.</span><span>Listening data from Spotify</span></footer>
     </MotionConfig>

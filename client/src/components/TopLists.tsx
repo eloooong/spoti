@@ -14,9 +14,11 @@ const RANGES: { value: TimeRange; label: string }[] = [
 export function RangeTabs({
   range,
   onChange,
+  appearance = "default",
 }: {
   range: TimeRange;
   onChange: (range: TimeRange) => void;
+  appearance?: "default" | "preview";
 }) {
   return (
     <div
@@ -38,7 +40,7 @@ export function RangeTabs({
               onClick={() => onChange(value)}
               type="button"
             >
-              {isSelected && <motion.span aria-hidden="true" layoutId="time-range-indicator" className="absolute inset-0 rounded-lg bg-primary shadow-[0_4px_16px_rgba(29,185,84,0.25)]" transition={{ type: "spring", stiffness: 400, damping: 30 }} />}
+              {isSelected && <motion.span aria-hidden="true" layoutId="time-range-indicator" className={`absolute inset-0 rounded-lg ${appearance === "preview" ? "bg-[#dbe8d8]" : "bg-primary shadow-[0_4px_16px_rgba(29,185,84,0.25)]"}`} transition={{ type: "spring", stiffness: 400, damping: 30 }} />}
               <span className="relative z-10 truncate">{label}</span>
             </button>
           );
