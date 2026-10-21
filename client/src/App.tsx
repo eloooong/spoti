@@ -71,7 +71,7 @@ function Dashboard() {
           </div>
           <div className="grid gap-5 md:grid-cols-2"><TopArtistsPanel artists={artists} /><TopTracksPanel tracks={tracks} /></div>
           <div className="mt-5 grid gap-5 md:grid-cols-2">
-            <Suspense fallback={<ChartPanelSkeleton title="Your Sound" />}><YourSound artists={artists} /></Suspense>
+            <Suspense fallback={<ChartPanelSkeleton title="Your Sound" />}><YourSound artists={artists} tracks={tracks} /></Suspense>
             <Suspense fallback={<ChartPanelSkeleton title="Obscurity Score" />}><ObscurityPanel artists={artists} tracks={tracks} /></Suspense>
           </div>
         </section>

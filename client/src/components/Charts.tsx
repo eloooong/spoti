@@ -4,6 +4,7 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import type { Artist, RecentlyPlayedEntry, Track } from "@/lib/api";
 import { ChartEmpty, Panel, SkeletonLines } from "@/components/Panel";
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
+import { buildSoundBreakdown, type SoundRow } from "@/lib/your-sound";
 
 const GREEN = "#1db954";
 const BRIGHT_GREEN = "#1ed760";
@@ -297,60 +298,37 @@ export function DailyTop({ items }: ClockRoutineProps) {
 }
 
 // ─── Your Sound (top genres) ──────────────────────────────────────────────────
-// Genre frequency across your top artists in the selected range — pure
-// Spotify genre tags, no audio-features inference. Counts are per artist
-// appearance, not per play.
-
-const yourSoundConfig = {
-  count: { color: GREEN, label: "Artists" },
-} satisfies ChartConfig;
-
-interface GenreRow {
-  genre: string;
-  count: number;
-}
-
-function buildGenreCounts(artists: Artist[]): GenreRow[] {
-  const counts = new Map<string, { label: string; count: number }>();
-  artists.forEach((a) => {
-    (a.genres ?? []).forEach((raw) => {
-      const key = raw.toLowerCase().trim();
-      if (!key) return;
-      const entry = counts.get(key);
-      if (entry) entry.count += 1;
-      else counts.set(key, { label: raw.trim(), count: 1 });
-    });
-  });
-  return [...counts.values()]
-    .map(({ label, count }) => ({ genre: label, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 8);
-}
-
-export function YourSound({ artists }: { artists: Artist[] | null }) {
-  const data = artists ? buildGenreCounts(artists) : null;
+// Prefer Spotify genre tags. When those fields are omitted, show the artist
+// mix in the same range's top tracks, with the different measure labeled.
+export function YourSound({ artists, tracks }: { artists: Artist[] | null; tracks: Track[] | null }) {
+  const breakdown = buildSoundBreakdown(artists, tracks);
+  const artistMix = breakdown?.source === "artists";
+  const measure = artistMix ? "Top tracks" : "Artists";
+  const config = { count: { color: GREEN, label: measure } } satisfies ChartConfig;
 
   return (
     <Panel
-      note="Most common genres across your top artists in this range — switch the range tabs above to compare"
+      note={artistMix ? "Artists represented in your top tracks for this range — collaborations count for each credited artist" : "Most common genres across your top artists in this range — switch the range tabs above to compare"}
       title="Your Sound"
     >
-      {data === null ? (
+      {breakdown === null ? (
         <div className="h-72 pt-6">
           <SkeletonLines rows={6} />
         </div>
-      ) : data.length === 0 ? (
+      ) : breakdown.rows.length === 0 ? (
         <ChartEmpty icon={Disc3}>
-          Not enough genre data yet — Spotify doesn't tag every artist with a genre.
+          {artists?.length ? "Spotify returned your artists without genre tags, and no top tracks were available for an artist mix. Try another time range." : "No top artists or tracks were returned for this time range. Try another range."}
         </ChartEmpty>
       ) : (
-        <ChartContainer className="aspect-auto h-72 w-full" config={yourSoundConfig}>
-          <BarChart data={data} layout="vertical" margin={{ left: 8, right: 12 }}>
+        <>
+        <p className="mb-3 text-xs leading-relaxed text-muted-foreground">{artistMix ? "Genre tags weren’t returned by Spotify. Showing your artist mix instead." : `Genre tags available for ${breakdown.taggedArtists} of ${breakdown.totalArtists} top artists.`}</p>
+        <ChartContainer className="aspect-auto h-72 w-full" config={config}>
+          <BarChart data={breakdown.rows} layout="vertical" margin={{ left: 8, right: 12 }}>
             <CartesianGrid stroke={GRID_LINE} horizontal={false} />
             <XAxis allowDecimals={false} tick={{ fill: DIM }} tickLine={false} type="number" />
             <YAxis
               axisLine={false}
-              dataKey="genre"
+              dataKey="label"
               tick={{ fill: DIM }}
               tickLine={false}
               type="category"
@@ -359,13 +337,13 @@ export function YourSound({ artists }: { artists: Artist[] | null }) {
             <ChartTooltip
               content={({ active, payload }) => {
                 if (!(active && payload?.length)) return null;
-                const row = payload[0].payload as GenreRow;
+                const row = payload[0].payload as SoundRow;
                 return (
                   <div className="max-w-56 rounded-lg border border-white/10 bg-popover p-3 text-xs shadow-xl">
-                    <div className="mb-1 font-semibold">{row.genre}</div>
+                    <div className="mb-1 font-semibold">{row.label}</div>
                     <div className="flex items-center gap-2">
                       <span className="size-2 shrink-0 rounded-full" style={{ background: GREEN }} />
-                      <span className="text-muted-foreground">Artists</span>
+                      <span className="text-muted-foreground">{measure}</span>
                       <span className="ml-auto font-medium">{row.count}×</span>
                     </div>
                   </div>
@@ -376,6 +354,7 @@ export function YourSound({ artists }: { artists: Artist[] | null }) {
             <Bar barSize={14} dataKey="count" fill="var(--color-count)" radius={4} />
           </BarChart>
         </ChartContainer>
+        </>
       )}
     </Panel>
   );

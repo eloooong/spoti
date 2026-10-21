@@ -173,7 +173,8 @@ Certificate files are excluded from Git. The Vite proxy currently targets HTTP; 
 
 - Recent-play charts describe the **latest 50 plays**, rather than a complete listening history.
 - Top-item rankings use Spotify's time ranges rather than exact custom date intervals.
-- Genre and popularity charts depend on fields available to the app; some artists and tracks may lack them.
+- Your Sound uses artist genre tags when Spotify provides them. If those tags are missing, it shows artist appearances across your top tracks, with each collaboration counted once per credited artist. This is an artist mix, not a play-count or inferred-genre chart.
+- Popularity charts depend on fields available to the app; some artists and tracks may lack them.
 - Continuous history tracking, lifetime listening minutes, and Extended Streaming History import are not currently implemented.
 - API availability and permissions depend on Spotify's platform rules. Access restrictions and expired sessions are surfaced in the dashboard.
 
